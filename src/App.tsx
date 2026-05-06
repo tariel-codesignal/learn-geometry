@@ -3,12 +3,13 @@ import { Canvas } from './components/Canvas';
 import { Sidebar } from './components/Sidebar';
 import { Toolbar } from './components/Toolbar';
 import { fetchConfig, postState } from './lib/api';
-import type { GeomObject } from './lib/geometry';
+import type { GeomObject, Tool } from './lib/geometry';
 
 export default function App() {
   const [objects, setObjects] = useState<GeomObject[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<Tool>('move');
 
   useEffect(() => {
     let active = true;
@@ -57,8 +58,8 @@ export default function App() {
     <div className="app-shell">
       <Sidebar objects={objects} onAddObject={addObject} onDeleteObject={deleteObject} />
       <div className="main-area">
-        <Toolbar onAddObject={addObject} />
-        <Canvas objects={objects} />
+        <Toolbar activeTool={activeTool} onSelectTool={setActiveTool} />
+        <Canvas objects={objects} activeTool={activeTool} onAddObject={addObject} />
       </div>
       {(loading || status) && (
         <div className={`status-pill ${status ? 'is-error' : ''}`}>

@@ -8,6 +8,8 @@ export type GeomObject =
   | { id: string; type: 'polygon'; points: [number, number][]; label?: string }
   | { id: string; type: 'function'; expression: string; label?: string };
 
+export type Tool = 'move' | 'point' | 'line' | 'circle' | 'rectangle' | 'polygon';
+
 export type GeometryState = {
   objects: GeomObject[];
 };
