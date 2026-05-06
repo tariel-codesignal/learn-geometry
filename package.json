@@ -1,0 +1,26 @@
+{
+  "name": "learn-geometry",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bespoke Desmos-like geometry simulation for CodeSignal math courses.",
+  "scripts": {
+    "dev": "concurrently \"vite --host 0.0.0.0\" \"node server.js\"",
+    "build": "vite build",
+    "start": "IS_PRODUCTION=true node server.js",
+    "preview": "npm run build && npm run start"
+  },
+  "dependencies": {
+    "express": "^4.18.3",
+    "mathjs": "^15.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^8.2.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^8.0.10"
+  }
+}
