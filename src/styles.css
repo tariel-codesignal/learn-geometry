@@ -139,12 +139,46 @@ textarea {
   background: var(--accent-soft);
 }
 
+.tool-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.tool-button:disabled:hover {
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.history-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-right: 0.5rem;
+  border-right: 1px solid var(--border);
+  margin-right: 0.5rem;
+}
+
 .toolbar-hint {
   margin-left: 0.5rem;
   padding-left: 1rem;
   border-left: 1px solid var(--border);
   color: var(--text-tertiary);
   font-size: 0.8rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.toolbar-eraser {
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+.toolbar-eraser:not(:disabled):hover {
+  color: #b91c1c;
+  background: rgba(185, 28, 28, 0.08);
 }
 
 /* Sidebar */
@@ -233,10 +267,20 @@ textarea {
   padding: 0.45rem 1rem;
   border-bottom: 1px solid var(--border);
   background: transparent;
+  cursor: pointer;
 }
 
 .object-row:hover {
   background: var(--bg-subtle);
+}
+
+.object-row.is-selected {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent-line);
+}
+
+.object-row.is-selected .object-icon {
+  color: var(--accent-line);
 }
 
 .object-icon {
@@ -444,6 +488,20 @@ textarea {
   stroke-width: 2;
 }
 
+.shape-fill.is-selected {
+  fill: #000;
+}
+
+.shape-stroke.is-selected {
+  stroke: #000;
+  stroke-width: 3;
+}
+
+.function-path.is-selected {
+  stroke: #7f1d1d;
+  stroke-width: 3;
+}
+
 .drawing-preview .preview-stroke {
   fill: none;
   stroke: var(--shape);
@@ -481,6 +539,7 @@ textarea {
   fill: var(--shape);
   opacity: 0.85;
 }
+
 
 .object-label {
   fill: var(--text-primary);

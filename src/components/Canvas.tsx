@@ -11,6 +11,8 @@ type CanvasProps = {
   objects: GeomObject[];
   activeTool: Tool;
   onAddObject: (object: GeomObject) => void;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
 };
 
 type View = {
@@ -38,13 +40,22 @@ const ZOOM_PER_PIXEL = 1.0015;
 const MIN_DRAG_PX = 2;
 const SNAP_PX = 10;
 
-export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
+export function Canvas({ objects, activeTool, onAddObject, selectedId, onSelect }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragStateRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    lastX: number;
+    lastY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ centerX: 0, centerY: 0, scale: INITIAL_SCALE });
   const [drawing, setDrawing] = useState<Drawing>({ kind: 'idle' });
   const [snapHint, setSnapHint] = useState<[number, number] | null>(null);
+  const [spaceHeld, setSpaceHeld] = useState(false);
+
+  const effectiveTool: Tool = spaceHeld ? 'move' : activeTool;
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -109,11 +120,37 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
     return () => el.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
-  // Reset any in-progress drawing whenever the user picks a new tool.
+  // Reset any in-progress drawing whenever the active tool changes (including
+  // the temporary spacebar-induced switch to Move).
   useEffect(() => {
     setDrawing({ kind: 'idle' });
     setSnapHint(null);
-  }, [activeTool]);
+  }, [effectiveTool]);
+
+  // Hold spacebar to temporarily pan, regardless of the selected tool.
+  useEffect(() => {
+    function handleSpaceDown(event: KeyboardEvent) {
+      if (event.code !== 'Space' || event.repeat) return;
+      if (isInteractiveTarget(event.target)) return;
+      event.preventDefault();
+      setSpaceHeld(true);
+    }
+    function handleSpaceUp(event: KeyboardEvent) {
+      if (event.code !== 'Space') return;
+      setSpaceHeld(false);
+    }
+    function handleBlur() {
+      setSpaceHeld(false);
+    }
+    window.addEventListener('keydown', handleSpaceDown);
+    window.addEventListener('keyup', handleSpaceUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleSpaceDown);
+      window.removeEventListener('keyup', handleSpaceUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // Keyboard shortcuts while drawing.
   useEffect(() => {
@@ -141,7 +178,7 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
     const el = containerRef.current!;
     const rect = el.getBoundingClientRect();
     const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    if (activeTool === 'move') return raw;
+    if (effectiveTool === 'move') return raw;
     return snapToGrid(raw, grid.step, view.scale).world;
   }
 
@@ -149,7 +186,13 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
     const el = containerRef.current;
     if (!el) return;
     el.setPointerCapture(event.pointerId);
-    dragStateRef.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
@@ -165,7 +208,7 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
 
     if (event.button !== 0) return;
 
-    if (activeTool === 'move') {
+    if (effectiveTool === 'move') {
       startPan(event);
       return;
     }
@@ -173,7 +216,7 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
     const world = eventWorldPos(event);
     const el = containerRef.current!;
 
-    switch (activeTool) {
+    switch (effectiveTool) {
       case 'point':
         onAddObject({
           id: createObjectId('point'),
@@ -255,7 +298,7 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
   }
 
   function updateSnapHint(event: { clientX: number; clientY: number }) {
-    if (activeTool === 'move') {
+    if (effectiveTool === 'move') {
       setSnapHint((current) => (current === null ? current : null));
       return;
     }
@@ -284,6 +327,15 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
     if (drag && drag.pointerId === event.pointerId) {
       el?.releasePointerCapture(event.pointerId);
       dragStateRef.current = null;
+      const moved = Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY);
+      if (moved < 4 && effectiveTool === 'move' && el) {
+        const rect = el.getBoundingClientRect();
+        const sx = drag.startX - rect.left;
+        const sy = drag.startY - rect.top;
+        const world = screenToWorld(sx, sy);
+        const hit = pickObject(objects, world, view.scale, size);
+        onSelect(hit ? hit.id : null);
+      }
       return;
     }
 
@@ -356,7 +408,7 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
 
   const grid = useMemo(() => buildGrid(view, size), [view, size]);
   const zoomLabel = formatScale(view.scale);
-  const surfaceClass = `canvas-surface tool-${activeTool}${drawing.kind !== 'idle' ? ' is-drawing' : ''}`;
+  const surfaceClass = `canvas-surface tool-${effectiveTool}${drawing.kind !== 'idle' ? ' is-drawing' : ''}`;
 
   return (
     <div
@@ -432,7 +484,14 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
           </g>
           <g className="objects-layer">
             {objects.map((object) => (
-              <GeometryObject key={object.id} object={object} view={view} size={size} worldToScreen={worldToScreen} />
+              <GeometryObject
+                key={object.id}
+                object={object}
+                view={view}
+                size={size}
+                worldToScreen={worldToScreen}
+                isSelected={object.id === selectedId}
+              />
             ))}
           </g>
           <DrawingPreview drawing={drawing} worldToScreen={worldToScreen} view={view} />
@@ -441,7 +500,14 @@ export function Canvas({ objects, activeTool, onAddObject }: CanvasProps) {
           )}
         </svg>
       )}
-      <div className="canvas-hud">
+      <div
+        className="canvas-hud"
+        onMouseDown={(event) => {
+          if (event.target instanceof HTMLButtonElement) {
+            event.preventDefault();
+          }
+        }}
+      >
         <button
           type="button"
           className="hud-button hud-icon"
@@ -545,15 +611,18 @@ type GeometryObjectProps = {
   view: View;
   size: Size;
   worldToScreen: (x: number, y: number) => [number, number];
+  isSelected: boolean;
 };
 
-function GeometryObject({ object, view, size, worldToScreen }: GeometryObjectProps) {
+function GeometryObject({ object, view, size, worldToScreen, isSelected }: GeometryObjectProps) {
+  const fillClass = `shape-fill${isSelected ? ' is-selected' : ''}`;
+  const strokeClass = `shape-stroke${isSelected ? ' is-selected' : ''}`;
   switch (object.type) {
     case 'point': {
       const [sx, sy] = worldToScreen(object.x, object.y);
       return (
         <g>
-          <circle cx={sx} cy={sy} r={6} className="shape-fill" />
+          <circle cx={sx} cy={sy} r={isSelected ? 7 : 6} className={fillClass} />
           <ObjectLabel screenX={sx} screenY={sy} label={object.label} />
         </g>
       );
@@ -562,7 +631,7 @@ function GeometryObject({ object, view, size, worldToScreen }: GeometryObjectPro
       const [sx, sy] = worldToScreen(object.cx, object.cy);
       return (
         <g>
-          <circle cx={sx} cy={sy} r={object.r * view.scale} className="shape-stroke" />
+          <circle cx={sx} cy={sy} r={object.r * view.scale} className={strokeClass} />
           <ObjectLabel screenX={sx} screenY={sy} label={object.label} />
         </g>
       );
@@ -572,7 +641,7 @@ function GeometryObject({ object, view, size, worldToScreen }: GeometryObjectPro
       const [x2, y2] = worldToScreen(object.x2, object.y2);
       return (
         <g>
-          <line x1={x1} y1={y1} x2={x2} y2={y2} className="shape-stroke" />
+          <line x1={x1} y1={y1} x2={x2} y2={y2} className={strokeClass} />
           <ObjectLabel screenX={(x1 + x2) / 2} screenY={(y1 + y2) / 2} label={object.label} />
         </g>
       );
@@ -588,7 +657,7 @@ function GeometryObject({ object, view, size, worldToScreen }: GeometryObjectPro
             y={sy}
             width={Math.abs(object.w) * view.scale}
             height={Math.abs(object.h) * view.scale}
-            className="shape-stroke"
+            className={strokeClass}
           />
           <ObjectLabel
             screenX={sx + (Math.abs(object.w) * view.scale) / 2}
@@ -605,14 +674,19 @@ function GeometryObject({ object, view, size, worldToScreen }: GeometryObjectPro
         <g>
           <polygon
             points={points.map(([x, y]) => `${x},${y}`).join(' ')}
-            className="shape-stroke polygon-fill"
+            className={`${strokeClass} polygon-fill`}
           />
           {first && <ObjectLabel screenX={first[0]} screenY={first[1]} label={object.label} />}
         </g>
       );
     }
     case 'function':
-      return <path d={functionPath(object.expression, view, size, worldToScreen)} className="function-path" />;
+      return (
+        <path
+          d={functionPath(object.expression, view, size, worldToScreen)}
+          className={`function-path${isSelected ? ' is-selected' : ''}`}
+        />
+      );
     default:
       return null;
   }
@@ -774,6 +848,123 @@ function formatScale(scale: number): string {
 
 function worldDragPixels(a: [number, number], b: [number, number], scale: number): number {
   return Math.hypot(b[0] - a[0], b[1] - a[1]) * scale;
+}
+
+const PICK_TOLERANCE_PX = 8;
+
+function pickObject(
+  objects: GeomObject[],
+  world: [number, number],
+  scale: number,
+  size: Size,
+): GeomObject | null {
+  let best: { object: GeomObject; distance: number } | null = null;
+  for (let index = objects.length - 1; index >= 0; index -= 1) {
+    const object = objects[index];
+    const distance = hitDistancePx(object, world, scale, size);
+    if (distance <= PICK_TOLERANCE_PX && (!best || distance < best.distance)) {
+      best = { object, distance };
+    }
+  }
+  return best?.object ?? null;
+}
+
+function hitDistancePx(object: GeomObject, world: [number, number], scale: number, size: Size): number {
+  const [wx, wy] = world;
+  switch (object.type) {
+    case 'point':
+      return Math.hypot(wx - object.x, wy - object.y) * scale;
+    case 'circle':
+      return Math.abs(Math.hypot(wx - object.cx, wy - object.cy) - object.r) * scale;
+    case 'line':
+      return distanceToSegment(world, [object.x1, object.y1], [object.x2, object.y2]) * scale;
+    case 'rectangle': {
+      const xLow = Math.min(object.x, object.x + object.w);
+      const xHigh = Math.max(object.x, object.x + object.w);
+      const yLow = Math.min(object.y, object.y + object.h);
+      const yHigh = Math.max(object.y, object.y + object.h);
+      const corners: [number, number][] = [
+        [xLow, yLow],
+        [xHigh, yLow],
+        [xHigh, yHigh],
+        [xLow, yHigh],
+      ];
+      let min = Infinity;
+      for (let i = 0; i < 4; i += 1) {
+        const a = corners[i];
+        const b = corners[(i + 1) % 4];
+        const d = distanceToSegment(world, a, b);
+        if (d < min) min = d;
+      }
+      return min * scale;
+    }
+    case 'polygon': {
+      if (pointInPolygon(world, object.points)) return 0;
+      let min = Infinity;
+      for (let i = 0; i < object.points.length; i += 1) {
+        const a = object.points[i];
+        const b = object.points[(i + 1) % object.points.length];
+        const d = distanceToSegment(world, a, b);
+        if (d < min) min = d;
+      }
+      return min * scale;
+    }
+    case 'function': {
+      const wxMin = wx - (size.width / 2) / scale;
+      const wxMax = wx + (size.width / 2) / scale;
+      const samples = 80;
+      const range = wxMax - wxMin;
+      const step = range / samples;
+      let min = Infinity;
+      let prev: [number, number] | null = null;
+      for (let i = 0; i <= samples; i += 1) {
+        const sx = wxMin + step * i;
+        const sy = evaluateFunctionExpression(object.expression, sx);
+        if (sy === null || !Number.isFinite(sy)) {
+          prev = null;
+          continue;
+        }
+        const point: [number, number] = [sx, sy];
+        if (prev) {
+          const d = distanceToSegment(world, prev, point);
+          if (d < min) min = d;
+        }
+        prev = point;
+      }
+      return min * scale;
+    }
+    default:
+      return Infinity;
+  }
+}
+
+function distanceToSegment(p: [number, number], a: [number, number], b: [number, number]): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lenSq));
+  const cx = a[0] + t * dx;
+  const cy = a[1] + t * dy;
+  return Math.hypot(p[0] - cx, p[1] - cy);
+}
+
+function pointInPolygon(p: [number, number], polygon: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersects = yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return true;
+  return target.isContentEditable;
 }
 
 function snapToGrid(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Canvas } from './components/Canvas';
 import { Sidebar } from './components/Sidebar';
 import { Toolbar } from './components/Toolbar';
@@ -7,9 +7,12 @@ import type { GeomObject, Tool } from './lib/geometry';
 
 export default function App() {
   const [objects, setObjects] = useState<GeomObject[]>([]);
+  const [past, setPast] = useState<GeomObject[][]>([]);
+  const [future, setFuture] = useState<GeomObject[][]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>('move');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -37,29 +40,106 @@ export default function App() {
     };
   }, []);
 
-  function syncObjects(nextObjects: GeomObject[]) {
-    setObjects(nextObjects);
-    postState(nextObjects)
+  const sync = useCallback((next: GeomObject[]) => {
+    setObjects(next);
+    postState(next)
       .then(() => setStatus(null))
       .catch((error) => {
         setStatus(error instanceof Error ? error.message : 'Unable to sync state.');
       });
-  }
+  }, []);
+
+  const commit = useCallback(
+    (next: GeomObject[]) => {
+      setPast((p) => [...p, objects]);
+      setFuture([]);
+      sync(next);
+    },
+    [objects, sync],
+  );
 
   function addObject(object: GeomObject) {
-    syncObjects([...objects, object]);
+    commit([...objects, object]);
   }
 
   function deleteObject(id: string) {
-    syncObjects(objects.filter((object) => object.id !== id));
+    if (selectedId === id) setSelectedId(null);
+    commit(objects.filter((object) => object.id !== id));
   }
+
+  function clearAll() {
+    if (objects.length === 0) return;
+    setSelectedId(null);
+    commit([]);
+  }
+
+  useEffect(() => {
+    if (selectedId && !objects.some((object) => object.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [objects, selectedId]);
+
+  const undo = useCallback(() => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    setPast(past.slice(0, -1));
+    setFuture([objects, ...future]);
+    sync(previous);
+  }, [past, future, objects, sync]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setFuture(future.slice(1));
+    setPast([...past, objects]);
+    sync(next);
+  }, [past, future, objects, sync]);
+
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (isEditableTarget(event.target)) return;
+      const meta = event.metaKey || event.ctrlKey;
+      if (!meta) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if ((key === 'z' && event.shiftKey) || key === 'y') {
+        event.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [undo, redo]);
 
   return (
     <div className="app-shell">
-      <Sidebar objects={objects} onAddObject={addObject} onDeleteObject={deleteObject} />
+      <Sidebar
+        objects={objects}
+        onAddObject={addObject}
+        onDeleteObject={deleteObject}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+      />
       <div className="main-area">
-        <Toolbar activeTool={activeTool} onSelectTool={setActiveTool} />
-        <Canvas objects={objects} activeTool={activeTool} onAddObject={addObject} />
+        <Toolbar
+          activeTool={activeTool}
+          onSelectTool={setActiveTool}
+          onClearAll={clearAll}
+          hasObjects={objects.length > 0}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={past.length > 0}
+          canRedo={future.length > 0}
+        />
+        <Canvas
+          objects={objects}
+          activeTool={activeTool}
+          onAddObject={addObject}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
       </div>
       {(loading || status) && (
         <div className={`status-pill ${status ? 'is-error' : ''}`}>
@@ -68,4 +148,11 @@ export default function App() {
       )}
     </div>
   );
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return target.isContentEditable;
 }

@@ -4,10 +4,21 @@ import type { Tool } from '../lib/geometry';
 type ToolbarProps = {
   activeTool: Tool;
   onSelectTool: (tool: Tool) => void;
+  onClearAll: () => void;
+  hasObjects: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 };
 
+const IS_MAC =
+  typeof navigator !== 'undefined' &&
+  /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
+const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl';
+
 const TOOLS: { id: Tool; label: string; icon: ReactNode }[] = [
-  { id: 'move', label: 'Move / Pan', icon: <MoveIcon /> },
+  { id: 'move', label: 'Drag / Select', icon: <MoveIcon /> },
   { id: 'point', label: 'Point', icon: <PointIcon /> },
   { id: 'line', label: 'Line', icon: <LineIcon /> },
   { id: 'circle', label: 'Circle', icon: <CircleIcon /> },
@@ -15,9 +26,47 @@ const TOOLS: { id: Tool; label: string; icon: ReactNode }[] = [
   { id: 'polygon', label: 'Polygon', icon: <PolyIcon /> },
 ];
 
-export function Toolbar({ activeTool, onSelectTool }: ToolbarProps) {
+export function Toolbar({
+  activeTool,
+  onSelectTool,
+  onClearAll,
+  hasObjects,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+}: ToolbarProps) {
   return (
-    <header className="toolbar">
+    <header
+      className="toolbar"
+      onMouseDown={(event) => {
+        if (event.target instanceof HTMLButtonElement) {
+          event.preventDefault();
+        }
+      }}
+    >
+      <div className="history-buttons" aria-label="History">
+        <button
+          type="button"
+          className="tool-button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          aria-label="Undo"
+          title={`Undo (${MOD_KEY}Z)`}
+        >
+          <UndoIcon />
+        </button>
+        <button
+          type="button"
+          className="tool-button"
+          onClick={onRedo}
+          disabled={!canRedo}
+          aria-label="Redo"
+          title={`Redo (${IS_MAC ? '⇧⌘Z' : 'Ctrl+Shift+Z'})`}
+        >
+          <RedoIcon />
+        </button>
+      </div>
       <div className="tool-buttons" role="tablist" aria-label="Geometry tools">
         {TOOLS.map((tool) => (
           <button
@@ -37,6 +86,16 @@ export function Toolbar({ activeTool, onSelectTool }: ToolbarProps) {
       <div className="toolbar-hint" aria-live="polite">
         {hintFor(activeTool)}
       </div>
+      <button
+        type="button"
+        className="tool-button toolbar-eraser"
+        onClick={onClearAll}
+        disabled={!hasObjects}
+        aria-label="Clear all objects"
+        title="Clear all objects"
+      >
+        <EraserIcon />
+      </button>
     </header>
   );
 }
@@ -44,7 +103,7 @@ export function Toolbar({ activeTool, onSelectTool }: ToolbarProps) {
 function hintFor(tool: Tool): string {
   switch (tool) {
     case 'move':
-      return 'Drag to pan, scroll to zoom.';
+      return 'Click to select an object, drag to pan, scroll to zoom.';
     case 'point':
       return 'Click on the canvas to place a point.';
     case 'line':
@@ -66,14 +125,14 @@ function MoveIcon() {
       viewBox="0 0 20 20"
       width="18"
       height="18"
-      fill="none"
+      fill="currentColor"
       stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
+      strokeWidth="0.8"
       strokeLinejoin="round"
+      strokeLinecap="round"
       aria-hidden="true"
     >
-      <path d="M10 2.5v15M2.5 10h15M10 2.5l-2 2M10 2.5l2 2M10 17.5l-2-2M10 17.5l2-2M2.5 10l2-2M2.5 10l2 2M17.5 10l-2-2M17.5 10l-2 2" />
+      <path d="M4 3L4 16L8 12L10.5 17L12.5 16L10 11L14.5 11Z" />
     </svg>
   );
 }
@@ -151,6 +210,64 @@ function PolyIcon() {
       aria-hidden="true"
     >
       <path d="M10 3.5L16.5 8L14 16H6L3.5 8Z" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 5L3 8L6 11" />
+      <path d="M3 8H12.5A4.5 4.5 0 0 1 12.5 17H8" />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 5L17 8L14 11" />
+      <path d="M17 8H7.5A4.5 4.5 0 0 0 7.5 17H12" />
+    </svg>
+  );
+}
+
+function EraserIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M3.5 12L11 4.5L16.5 10L11.5 15H7.5Z" />
+      <path d="M7 8.5L12.5 14" />
+      <path d="M7.5 15H17" />
     </svg>
   );
 }

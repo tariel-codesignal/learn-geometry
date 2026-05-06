@@ -5,20 +5,29 @@ type SidebarProps = {
   objects: GeomObject[];
   onAddObject: (object: GeomObject) => void;
   onDeleteObject: (id: string) => void;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
 };
 
-export function Sidebar({ objects, onAddObject, onDeleteObject }: SidebarProps) {
+export function Sidebar({ objects, onAddObject, onDeleteObject, selectedId, onSelect }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [formula, setFormula] = useState('');
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (editing) {
       inputRef.current?.focus();
     }
   }, [editing]);
+
+  useEffect(() => {
+    if (!selectedId || !listRef.current) return;
+    const row = listRef.current.querySelector<HTMLElement>(`[data-object-id="${selectedId}"]`);
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedId]);
 
   function startEditing() {
     setEditing(true);
@@ -80,9 +89,14 @@ export function Sidebar({ objects, onAddObject, onDeleteObject }: SidebarProps) 
             <span className="sidebar-count">{objects.length}</span>
           </div>
 
-          <div className="object-list" aria-live="polite">
+          <div className="object-list" aria-live="polite" ref={listRef}>
             {objects.map((object) => (
-              <div className="object-row" key={object.id}>
+              <div
+                className={`object-row ${object.id === selectedId ? 'is-selected' : ''}`}
+                key={object.id}
+                data-object-id={object.id}
+                onClick={() => onSelect(object.id === selectedId ? null : object.id)}
+              >
                 <span className="object-icon" aria-hidden="true">{objectIcon(object)}</span>
                 <div className="object-details">
                   <strong>{objectLabel(object)}</strong>
@@ -91,7 +105,10 @@ export function Sidebar({ objects, onAddObject, onDeleteObject }: SidebarProps) 
                 <button
                   type="button"
                   className="delete-button"
-                  onClick={() => onDeleteObject(object.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteObject(object.id);
+                  }}
                   aria-label={`Delete ${objectLabel(object)}`}
                   title="Delete"
                 >
