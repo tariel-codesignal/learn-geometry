@@ -81,6 +81,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [selectedIntersection, setSelectedIntersection] = useState<[number, number] | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [hoverClickable, setHoverClickable] = useState(false);
 
   const effectiveTool: Tool = spaceHeld ? 'move' : activeTool;
 
@@ -372,6 +373,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     }
 
     updateSnapHint(event);
+    updateHoverClickable(event);
 
     if (drawing.kind === 'idle') return;
 
@@ -414,6 +416,29 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
 
   function handlePointerLeave() {
     setSnapHint(null);
+    setHoverClickable(false);
+  }
+
+  function updateHoverClickable(event: { clientX: number; clientY: number }) {
+    if (effectiveTool !== 'move' || dragStateRef.current || editing) {
+      if (hoverClickable) setHoverClickable(false);
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+    if (selectedObject) {
+      const handleHit = pickHandle(getHandles(selectedObject), raw, view.scale);
+      if (handleHit) {
+        if (hoverClickable) setHoverClickable(false);
+        return;
+      }
+    }
+    const onIntersection = pickIntersection(intersections, raw, view.scale);
+    const onObject = pickObject(objects, raw, view.scale, size);
+    const next = !!(onIntersection || onObject);
+    if (next !== hoverClickable) setHoverClickable(next);
   }
 
   function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
@@ -557,6 +582,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     `tool-${effectiveTool}`,
     drawing.kind !== 'idle' ? 'is-drawing' : '',
     editing?.handle.type === 'translate' ? 'is-translating' : '',
+    hoverClickable && !editing && !dragStateRef.current ? 'hover-clickable' : '',
   ]
     .filter(Boolean)
     .join(' ');

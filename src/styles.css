@@ -334,6 +334,51 @@ textarea {
   background: var(--bg-subtle);
 }
 
+.object-editor {
+  padding: 0.55rem 1rem 0.85rem;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.55rem;
+}
+
+.editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 0 0 auto;
+}
+
+.editor-field.full {
+  flex: 1 1 100%;
+}
+
+.editor-field span {
+  font-family: 'Times New Roman', Georgia, serif;
+  font-style: italic;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  padding-left: 0.1rem;
+}
+
+.editor-field input {
+  width: 64px;
+  padding: 0.28rem 0.45rem;
+  font-size: 0.82rem;
+  font-feature-settings: 'tnum';
+}
+
+.editor-field.full input {
+  width: 100%;
+}
+
+.editor-field input.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}
+
 .add-row {
   grid-template-columns: 24px minmax(0, 1fr);
   cursor: text;
@@ -417,6 +462,11 @@ textarea {
 
 .canvas-surface.tool-move:active {
   cursor: grabbing;
+}
+
+.canvas-surface.tool-move.hover-clickable,
+.canvas-surface.tool-move.hover-clickable:active {
+  cursor: pointer;
 }
 
 .canvas-surface.is-translating,

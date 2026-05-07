@@ -129,6 +129,7 @@ export default function App() {
       <Sidebar
         objects={objects}
         onAddObject={addObject}
+        onUpdateObject={updateObject}
         onDeleteObject={deleteObject}
         selectedId={selectedId}
         onSelect={setSelectedId}
