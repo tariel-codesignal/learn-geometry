@@ -419,6 +419,11 @@ textarea {
   cursor: grabbing;
 }
 
+.canvas-surface.is-translating,
+.canvas-surface.is-translating:active {
+  cursor: grabbing;
+}
+
 .canvas-surface.tool-point,
 .canvas-surface.tool-line,
 .canvas-surface.tool-circle,
@@ -538,6 +543,40 @@ textarea {
 .snap-indicator .snap-dot {
   fill: var(--shape);
   opacity: 0.85;
+}
+
+.intersections-layer {
+  pointer-events: none;
+}
+
+.intersection-halo {
+  fill: #f59e0b;
+  opacity: 0.22;
+}
+
+.intersection-dot {
+  fill: #f59e0b;
+  stroke: #fff;
+  stroke-width: 1.25;
+}
+
+.intersection-label {
+  fill: #1a1a1a;
+  font-family: 'Times New Roman', Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  font-feature-settings: 'tnum';
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 4px;
+  pointer-events: none;
+}
+
+.edit-handle {
+  fill: #fff;
+  stroke: #1a1a1a;
+  stroke-width: 1.25;
+  cursor: nwse-resize;
 }
 
 

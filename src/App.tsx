@@ -67,6 +67,10 @@ export default function App() {
     commit(objects.filter((object) => object.id !== id));
   }
 
+  function updateObject(updated: GeomObject) {
+    commit(objects.map((object) => (object.id === updated.id ? updated : object)));
+  }
+
   function clearAll() {
     if (objects.length === 0) return;
     setSelectedId(null);
@@ -98,6 +102,13 @@ export default function App() {
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (isEditableTarget(event.target)) return;
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
+        event.preventDefault();
+        const id = selectedId;
+        setSelectedId(null);
+        commit(objects.filter((object) => object.id !== id));
+        return;
+      }
       const meta = event.metaKey || event.ctrlKey;
       if (!meta) return;
       const key = event.key.toLowerCase();
@@ -111,7 +122,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [undo, redo]);
+  }, [undo, redo, selectedId, objects, commit]);
 
   return (
     <div className="app-shell">
@@ -137,6 +148,7 @@ export default function App() {
           objects={objects}
           activeTool={activeTool}
           onAddObject={addObject}
+          onUpdateObject={updateObject}
           selectedId={selectedId}
           onSelect={setSelectedId}
         />
