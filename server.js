@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { computeIntersections } = require('./intersections');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -19,7 +20,16 @@ app.get('/api/state', (request, response) => {
   const format = request.query.format === 'text' ? 'text' : 'json';
 
   if (format === 'text') {
-    response.type('text/plain').send(state.objects.map(summarizeObject).join('\n'));
+    const lines = state.objects.map(summarizeObject);
+    const intersections = computeIntersections(state.objects);
+    if (intersections.length > 0) {
+      lines.push('');
+      lines.push(`Intersections (${intersections.length}):`);
+      for (const [x, y] of intersections) {
+        lines.push(`  (${formatNumber(x)}, ${formatNumber(y)})`);
+      }
+    }
+    response.type('text/plain').send(lines.join('\n'));
     return;
   }
 
