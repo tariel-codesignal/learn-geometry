@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Canvas } from './components/Canvas';
 import { Sidebar } from './components/Sidebar';
+import { TaskPanelMount } from './components/TaskPanelMount';
 import { Toolbar } from './components/Toolbar';
 import { fetchConfig, postState } from './lib/api';
 import type { GeomObject, Tool } from './lib/geometry';
@@ -159,6 +160,7 @@ export default function App() {
           {loading ? 'Loading…' : status}
         </div>
       )}
+      <TaskPanelMount />
     </div>
   );
 }

@@ -8,12 +8,13 @@ const port = process.env.PORT || 3000;
 const configPath = path.join(__dirname, 'config.json');
 const distPath = path.join(__dirname, 'dist');
 
-let state = readConfig();
+let state = { objects: readConfig().objects };
+let submittedAnswer = '';
 
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/config', (_request, response) => {
-  response.json(readConfig());
+  response.json({ objects: readConfig().objects });
 });
 
 app.get('/api/state', (request, response) => {
@@ -48,6 +49,48 @@ app.post('/api/state', (request, response) => {
   response.json({ ok: true, objects: state.objects });
 });
 
+app.get('/api/task', (request, response) => {
+  const format = request.query.format === 'text' ? 'text' : 'json';
+  const task = readConfig().task;
+
+  if (format === 'text') {
+    if (!task) {
+      response.type('text/plain').send('(no task configured)');
+      return;
+    }
+    const lines = [];
+    lines.push(`Question: ${task.question}`);
+    lines.push(`Type: ${task.type}`);
+    if (task.type === 'multiple_choice') {
+      lines.push(`Options: ${task.options.join(', ')}`);
+    }
+    lines.push(`Correct answer: ${task.correctAnswer}`);
+    lines.push(`Learner's answer: ${submittedAnswer}`);
+    response.type('text/plain').send(lines.join('\n'));
+    return;
+  }
+
+  response.json({ task: task ?? null, submittedAnswer });
+});
+
+app.post('/api/task/answer', (request, response) => {
+  const answer = request.body?.answer;
+
+  if (typeof answer !== 'string') {
+    response.status(400).json({ error: 'Expected body shape: { answer: string }' });
+    return;
+  }
+
+  const task = readConfig().task;
+  if (task && task.type === 'multiple_choice' && answer !== '' && !task.options.includes(answer)) {
+    response.status(400).json({ error: 'Answer must be one of the configured options' });
+    return;
+  }
+
+  submittedAnswer = answer;
+  response.json({ ok: true, submittedAnswer });
+});
+
 if (process.env.IS_PRODUCTION === 'true') {
   app.use(express.static(distPath));
   app.get('*', (_request, response) => {
@@ -62,28 +105,75 @@ app.listen(port, () => {
 function readConfig() {
   try {
     if (!fs.existsSync(configPath)) {
-      return { objects: [] };
+      return { objects: [], task: null };
     }
 
     const contents = fs.readFileSync(configPath, 'utf8').trim();
     if (!contents) {
-      return { objects: [] };
+      return { objects: [], task: null };
     }
 
     const parsed = JSON.parse(contents);
-    return normalizeState(parsed);
+    return normalizeConfig(parsed);
   } catch (error) {
     console.warn(`Unable to read config.json: ${error.message}`);
-    return { objects: [] };
+    return { objects: [], task: null };
   }
 }
 
-function normalizeState(value) {
-  if (!value || typeof value !== 'object' || !Array.isArray(value.objects)) {
-    return { objects: [] };
+function normalizeConfig(value) {
+  if (!value || typeof value !== 'object') {
+    return { objects: [], task: null };
   }
 
-  return { objects: value.objects };
+  const objects = Array.isArray(value.objects) ? value.objects : [];
+  const task = 'task' in value ? validateTask(value.task) : null;
+  return { objects, task };
+}
+
+function validateTask(task) {
+  if (task === null || task === undefined) return null;
+  if (typeof task !== 'object') {
+    console.warn('Task validation: task must be an object — ignoring');
+    return null;
+  }
+  if (typeof task.question !== 'string' || !task.question.trim()) {
+    console.warn('Task validation: missing or empty "question" — ignoring');
+    return null;
+  }
+  if (task.type !== 'freeform' && task.type !== 'multiple_choice') {
+    console.warn(`Task validation: type must be "freeform" or "multiple_choice" (got ${JSON.stringify(task.type)}) — ignoring`);
+    return null;
+  }
+  if (typeof task.correctAnswer !== 'string') {
+    console.warn('Task validation: "correctAnswer" must be a string — ignoring');
+    return null;
+  }
+  if (task.type === 'multiple_choice') {
+    if (!Array.isArray(task.options) || task.options.length < 2 || task.options.length > 4) {
+      console.warn('Task validation: multiple_choice "options" must be an array of 2–4 strings — ignoring');
+      return null;
+    }
+    if (task.options.some((option) => typeof option !== 'string')) {
+      console.warn('Task validation: multiple_choice "options" must all be strings — ignoring');
+      return null;
+    }
+    if (!task.options.includes(task.correctAnswer)) {
+      console.warn('Task validation: multiple_choice "correctAnswer" must be one of "options" — ignoring');
+      return null;
+    }
+    return {
+      question: task.question,
+      type: 'multiple_choice',
+      options: [...task.options],
+      correctAnswer: task.correctAnswer,
+    };
+  }
+  return {
+    question: task.question,
+    type: 'freeform',
+    correctAnswer: task.correctAnswer,
+  };
 }
 
 function summarizeObject(object) {

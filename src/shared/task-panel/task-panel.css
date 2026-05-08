@@ -1,0 +1,210 @@
+/* task-panel — vanilla, dependency-free Q&A panel.
+ * All class names are prefixed `task-panel-` to avoid collisions. */
+
+.task-panel {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #1a1a1a;
+}
+
+.task-panel *,
+.task-panel *::before,
+.task-panel *::after {
+  box-sizing: border-box;
+}
+
+.task-panel button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.task-panel__pill {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 8px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+  color: #1a1a1a;
+}
+
+.task-panel__pill:hover {
+  background: #f5f5f5;
+}
+
+.task-panel__pill:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.task-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: 'Times New Roman', Georgia, serif;
+}
+
+.task-panel__pill-label {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.task-panel__card {
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.task-panel--collapsed .task-panel__card {
+  display: none;
+}
+
+.task-panel--collapsed .task-panel__pill {
+  display: inline-flex;
+}
+
+.task-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 12px 18px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fafafa;
+}
+
+.task-panel__title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #555555;
+}
+
+.task-panel__collapse {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #555555;
+}
+
+.task-panel__collapse:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #1a1a1a;
+}
+
+.task-panel__collapse:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 1px;
+}
+
+.task-panel__body {
+  padding: 20px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.task-panel__question {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: #1a1a1a;
+}
+
+.task-panel__textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1a1a1a;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.task-panel__textarea:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+}
+
+.task-panel__options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-panel__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #1a1a1a;
+}
+
+.task-panel__option:hover {
+  background: #f3f4f6;
+}
+
+.task-panel__option input[type='radio'] {
+  appearance: auto;
+  -webkit-appearance: radio;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  accent-color: #1a1a1a;
+}
+
+.task-panel__option input[type='radio']:focus {
+  outline: none;
+  box-shadow: none;
+  border: 0;
+}
+
+.task-panel__option input[type='radio']:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.task-panel__option-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}

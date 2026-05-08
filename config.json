@@ -1,1 +1,11 @@
-{ "objects": [] }
+{
+    "objects": [
+      { "id": "triangle", "type": "polygon", "points": [[0, 0], [6, 0], [0, 4]], "label": "right triangle" }
+    ],
+    "task": {
+      "question": "What is the area of this right triangle?",
+      "type": "freeform",
+      "correctAnswer": "12"
+    }
+  }
+  
