@@ -6,17 +6,27 @@ type Circle = { cx: number; cy: number; r: number };
 const EPS = 1e-9;
 const DEDUPE_EPS = 1e-6;
 
-export function computeIntersections(objects: GeomObject[]): [number, number][] {
+export type ViewRange = { xMin: number; xMax: number };
+
+export function computeIntersections(
+  objects: GeomObject[],
+  viewRange?: ViewRange,
+): [number, number][] {
   const out: [number, number][] = [];
   for (let i = 0; i < objects.length; i += 1) {
     for (let j = i + 1; j < objects.length; j += 1) {
-      collectPair(objects[i], objects[j], out);
+      collectPair(objects[i], objects[j], out, viewRange);
     }
   }
   return dedupe(out);
 }
 
-function collectPair(a: GeomObject, b: GeomObject, out: [number, number][]): void {
+function collectPair(
+  a: GeomObject,
+  b: GeomObject,
+  out: [number, number][],
+  viewRange: ViewRange | undefined,
+): void {
   const segsA = linearSegments(a);
   const segsB = linearSegments(b);
   const ca = a.type === 'circle' ? a : null;
@@ -40,6 +50,9 @@ function collectPair(a: GeomObject, b: GeomObject, out: [number, number][]): voi
   if (fb && !fa) {
     for (const sa of segsA) out.push(...functionSegment(fb.expression, sa));
     if (ca) out.push(...functionCircle(fb.expression, ca));
+  }
+  if (fa && fb && viewRange) {
+    out.push(...functionFunction(fa.expression, fb.expression, viewRange));
   }
 }
 
@@ -139,6 +152,36 @@ function functionSegment(expression: string, seg: Segment): [number, number][] {
 
 function functionCircle(expression: string, c: Circle): [number, number][] {
   return findRoots(expression, c.cx - c.r, c.cx + c.r, (x, y) => (x - c.cx) ** 2 + (y - c.cy) ** 2 - c.r * c.r);
+}
+
+function functionFunction(exprA: string, exprB: string, range: ViewRange): [number, number][] {
+  const xLow = range.xMin;
+  const xHigh = range.xMax;
+  if (!(xHigh > xLow)) return [];
+  const sample = (x: number): number | null => {
+    const ya = evaluateFunctionExpression(exprA, x);
+    const yb = evaluateFunctionExpression(exprB, x);
+    if (ya === null || yb === null) return null;
+    return ya - yb;
+  };
+  const out: [number, number][] = [];
+  const step = (xHigh - xLow) / SAMPLE_COUNT;
+  let prevX = xLow;
+  let prevH = sample(prevX);
+  for (let i = 1; i <= SAMPLE_COUNT; i += 1) {
+    const x = xLow + step * i;
+    const h = sample(x);
+    if (prevH !== null && h !== null && Math.sign(prevH) !== Math.sign(h)) {
+      const root = bisect(sample, prevX, x, prevH, h);
+      if (root !== null) {
+        const y = evaluateFunctionExpression(exprA, root);
+        if (y !== null && Number.isFinite(y)) out.push([root, y]);
+      }
+    }
+    prevX = x;
+    prevH = h;
+  }
+  return out;
 }
 
 const SAMPLE_COUNT = 240;

@@ -563,7 +563,15 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     if (!editing) return objects;
     return objects.map((object) => (object.id === editing.preview.id ? editing.preview : object));
   }, [objects, editing]);
-  const intersections = useMemo(() => computeIntersections(previewObjects), [previewObjects]);
+  const viewXRange = useMemo(() => {
+    if (size.width === 0) return undefined;
+    const half = size.width / 2 / view.scale;
+    return { xMin: view.centerX - half, xMax: view.centerX + half };
+  }, [size.width, view.centerX, view.scale]);
+  const intersections = useMemo(
+    () => computeIntersections(previewObjects, viewXRange),
+    [previewObjects, viewXRange],
+  );
   const handles = useMemo(() => {
     if (!selectedObject) return [] as Handle[];
     if (editing) return getHandles(editing.preview);

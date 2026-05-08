@@ -6,17 +6,17 @@ const SAMPLE_COUNT = 240;
 const ROOT_TOL = 1e-9;
 const ROOT_ITERS = 50;
 
-function computeIntersections(objects) {
+function computeIntersections(objects, viewRange) {
   const out = [];
   for (let i = 0; i < objects.length; i += 1) {
     for (let j = i + 1; j < objects.length; j += 1) {
-      collectPair(objects[i], objects[j], out);
+      collectPair(objects[i], objects[j], out, viewRange);
     }
   }
   return dedupe(out);
 }
 
-function collectPair(a, b, out) {
+function collectPair(a, b, out, viewRange) {
   const segsA = linearSegments(a);
   const segsB = linearSegments(b);
   const ca = a.type === 'circle' ? a : null;
@@ -40,6 +40,10 @@ function collectPair(a, b, out) {
   if (fb && !fa) {
     for (const sa of segsA) for (const p of functionSegment(fb.expression, sa)) out.push(p);
     if (ca) for (const p of functionCircle(fb.expression, ca)) out.push(p);
+  }
+  if (fa && fb) {
+    const range = viewRange ?? { xMin: -50, xMax: 50 };
+    for (const p of functionFunction(fa.expression, fb.expression, range)) out.push(p);
   }
 }
 
@@ -144,6 +148,36 @@ function functionCircle(expression, c) {
     c.cx + c.r,
     (x, y) => (x - c.cx) ** 2 + (y - c.cy) ** 2 - c.r * c.r,
   );
+}
+
+function functionFunction(exprA, exprB, range) {
+  const xLow = range.xMin;
+  const xHigh = range.xMax;
+  if (!(xHigh > xLow)) return [];
+  const sample = (x) => {
+    const ya = evalAt(exprA, x);
+    const yb = evalAt(exprB, x);
+    if (ya === null || yb === null) return null;
+    return ya - yb;
+  };
+  const out = [];
+  const step = (xHigh - xLow) / SAMPLE_COUNT;
+  let prevX = xLow;
+  let prevH = sample(prevX);
+  for (let i = 1; i <= SAMPLE_COUNT; i += 1) {
+    const x = xLow + step * i;
+    const h = sample(x);
+    if (prevH !== null && h !== null && Math.sign(prevH) !== Math.sign(h)) {
+      const root = bisect(sample, prevX, x, prevH);
+      if (root !== null) {
+        const y = evalAt(exprA, root);
+        if (y !== null) out.push([root, y]);
+      }
+    }
+    prevX = x;
+    prevH = h;
+  }
+  return out;
 }
 
 function findRoots(expression, xLow, xHigh, delta) {
