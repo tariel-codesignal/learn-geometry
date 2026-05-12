@@ -188,8 +188,9 @@ The single source of truth for what loads when the app starts.
 
 ```jsonc
 {
-  "objects": [ /* GeomObject[] */ ],
-  "task":    { /* Task — optional */ }
+  "objects":     [ /* GeomObject[] */ ],
+  "task":        { /* Task — optional */ },
+  "sidebarOpen": false /* optional, defaults to false */
 }
 ```
 
@@ -197,6 +198,10 @@ The single source of truth for what loads when the app starts.
 - `task` is optional. When absent or invalid, the Q&A panel does not
   render and the app runs in "building mode". On invalid task the server
   logs a `Task validation: …` warning.
+- `sidebarOpen` is optional. `true` starts the app with the Objects
+  sidebar expanded; `false` (or omitted) starts it collapsed. Users can
+  still toggle it during the session; this only controls the initial
+  state on page load.
 - Unknown top-level keys are ignored.
 
 ### Object types

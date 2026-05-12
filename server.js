@@ -14,7 +14,8 @@ let submittedAnswer = '';
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/config', (_request, response) => {
-  response.json({ objects: readConfig().objects });
+  const cfg = readConfig();
+  response.json({ objects: cfg.objects, sidebarOpen: cfg.sidebarOpen });
 });
 
 app.get('/api/state', (request, response) => {
@@ -105,12 +106,12 @@ app.listen(port, () => {
 function readConfig() {
   try {
     if (!fs.existsSync(configPath)) {
-      return { objects: [], task: null };
+      return { objects: [], task: null, sidebarOpen: false };
     }
 
     const contents = fs.readFileSync(configPath, 'utf8').trim();
     if (!contents) {
-      return { objects: [], task: null };
+      return { objects: [], task: null, sidebarOpen: false };
     }
 
     const parsed = JSON.parse(contents);
@@ -123,12 +124,13 @@ function readConfig() {
 
 function normalizeConfig(value) {
   if (!value || typeof value !== 'object') {
-    return { objects: [], task: null };
+    return { objects: [], task: null, sidebarOpen: false };
   }
 
   const objects = Array.isArray(value.objects) ? value.objects : [];
   const task = 'task' in value ? validateTask(value.task) : null;
-  return { objects, task };
+  const sidebarOpen = typeof value.sidebarOpen === 'boolean' ? value.sidebarOpen : false;
+  return { objects, task, sidebarOpen };
 }
 
 function validateTask(task) {

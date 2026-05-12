@@ -6,6 +6,7 @@ type SidebarProps = {
   onAddObject: (object: GeomObject) => void;
   onUpdateObject: (object: GeomObject) => void;
   onDeleteObject: (id: string) => void;
+  initialOpen: boolean | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 };
@@ -15,10 +16,21 @@ export function Sidebar({
   onAddObject,
   onUpdateObject,
   onDeleteObject,
+  initialOpen,
   selectedId,
   onSelect,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Start collapsed by default; the config-driven preference (if any) is
+  // applied once when it lands.
+  const [collapsed, setCollapsed] = useState(true);
+  const initialAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (initialAppliedRef.current) return;
+    if (initialOpen === null) return;
+    initialAppliedRef.current = true;
+    setCollapsed(!initialOpen);
+  }, [initialOpen]);
   const [editing, setEditing] = useState(false);
   const [formula, setFormula] = useState('');
   const [error, setError] = useState<string | null>(null);

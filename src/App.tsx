@@ -14,6 +14,7 @@ export default function App() {
   const [status, setStatus] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>('move');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [initialSidebarOpen, setInitialSidebarOpen] = useState<boolean | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -22,6 +23,7 @@ export default function App() {
       .then((state) => {
         if (active) {
           setObjects(state.objects);
+          setInitialSidebarOpen(state.sidebarOpen === true);
           setStatus(null);
         }
       })
@@ -132,6 +134,7 @@ export default function App() {
         onAddObject={addObject}
         onUpdateObject={updateObject}
         onDeleteObject={deleteObject}
+        initialOpen={initialSidebarOpen}
         selectedId={selectedId}
         onSelect={setSelectedId}
       />

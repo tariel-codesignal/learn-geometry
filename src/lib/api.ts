@@ -88,5 +88,9 @@ function normalizeState(data: unknown): GeometryState {
     return EMPTY_STATE;
   }
 
-  return { objects: (data as GeometryState).objects };
+  const candidate = data as GeometryState;
+  return {
+    objects: candidate.objects,
+    sidebarOpen: typeof candidate.sidebarOpen === 'boolean' ? candidate.sidebarOpen : undefined,
+  };
 }
