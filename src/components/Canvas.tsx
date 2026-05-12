@@ -55,7 +55,7 @@ type Size = {
 
 type Drawing =
   | { kind: 'idle' }
-  | { kind: 'line'; start: [number, number]; current: [number, number] }
+  | { kind: 'line'; start: [number, number]; current: [number, number]; pinned: boolean }
   | { kind: 'circle'; center: [number, number]; current: [number, number] }
   | { kind: 'rectangle'; start: [number, number]; current: [number, number] }
   | { kind: 'polygon'; points: [number, number][]; current: [number, number] };
@@ -298,10 +298,29 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
           y: world[1],
         });
         return;
-      case 'line':
+      case 'line': {
+        // Second click of a click-then-click line: commit if the second point
+        // is meaningfully separated from the first; otherwise stay pinned and
+        // wait for another click.
+        if (drawing.kind === 'line' && drawing.pinned) {
+          const [sx, sy] = drawing.start;
+          if (worldDragPixels([sx, sy], world, view.scale) >= MIN_DRAG_PX) {
+            onAddObject({
+              id: createObjectId('line'),
+              type: 'line',
+              x1: sx,
+              y1: sy,
+              x2: world[0],
+              y2: world[1],
+            });
+            setDrawing({ kind: 'idle' });
+          }
+          return;
+        }
         el.setPointerCapture(event.pointerId);
-        setDrawing({ kind: 'line', start: world, current: world });
+        setDrawing({ kind: 'line', start: world, current: world, pinned: false });
         return;
+      }
       case 'circle':
         el.setPointerCapture(event.pointerId);
         setDrawing({ kind: 'circle', center: world, current: world });
@@ -524,6 +543,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     if (drawing.kind === 'line') {
       const [sx, sy] = drawing.start;
       if (worldDragPixels([sx, sy], world, view.scale) >= MIN_DRAG_PX) {
+        // Released after a real drag — commit the line.
         onAddObject({
           id: createObjectId('line'),
           type: 'line',
@@ -532,8 +552,12 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
           x2: world[0],
           y2: world[1],
         });
+        setDrawing({ kind: 'idle' });
+      } else {
+        // Released without a real drag — first click of click-then-click mode.
+        // Keep the anchor and wait for the second click.
+        setDrawing({ kind: 'line', start: drawing.start, current: world, pinned: true });
       }
-      setDrawing({ kind: 'idle' });
       return;
     }
     if (drawing.kind === 'circle') {
@@ -1173,7 +1197,6 @@ function hitDistancePx(object: GeomObject, world: [number, number], scale: numbe
       return min * scale;
     }
     case 'polygon': {
-      if (pointInPolygon(world, object.points)) return 0;
       let min = Infinity;
       for (let i = 0; i < object.points.length; i += 1) {
         const a = object.points[i];
@@ -1221,17 +1244,6 @@ function distanceToSegment(p: [number, number], a: [number, number], b: [number,
   const cx = a[0] + t * dx;
   const cy = a[1] + t * dy;
   return Math.hypot(p[0] - cx, p[1] - cy);
-}
-
-function pointInPolygon(p: [number, number], polygon: [number, number][]): boolean {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
-    const [xi, yi] = polygon[i];
-    const [xj, yj] = polygon[j];
-    const intersects = yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi;
-    if (intersects) inside = !inside;
-  }
-  return inside;
 }
 
 const HANDLE_PICK_PX = 11;
@@ -1330,6 +1342,10 @@ function defaultPolygonLabel(vertexCount: number): string | undefined {
       return 'Pentagon';
     case 6:
       return 'Hexagon';
+    case 7:
+      return 'Heptagon';
+    case 8:
+      return 'Octagon';
     default:
       return undefined;
   }

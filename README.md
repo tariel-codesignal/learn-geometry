@@ -53,7 +53,7 @@ indefinitely in every direction, with axis tick labels (`1`, `2`, `5`, `10`,
 |---|---|---|
 | ↖ | **Drag / Select** | Click an object to select; drag a body to translate; drag a handle to resize; drag empty space to pan. |
 | ● | **Point** | Click to place a single point at the cursor. |
-| ╱ | **Line** | Press, drag from one endpoint to the other, release. |
+| ╱ | **Line** | Either drag from one endpoint to the other, or click the first endpoint and then click the second. Snap-to-grid applies to both clicks. |
 | ○ | **Circle** | Press at the center, drag outward to set radius, release. |
 | ▭ | **Rectangle** | Press one corner, drag to the opposite corner, release. |
 | ⬠ | **Polygon** | Click each vertex in turn. Close with one of: click near vertex #1 (a hollow ring appears when you're close), double-click anywhere, or press `Enter`. `Esc` cancels. |
@@ -74,7 +74,9 @@ mode does not snap.
 
 Clicking an object in **Drag / Select** mode selects it. The selected
 object stays the same color but renders slightly thicker, and its sidebar
-row is highlighted.
+row is highlighted. Polygons and rectangles are hit-tested on their
+**edges only** — clicking inside the filled area doesn't select them, so
+points or other shapes sitting inside a polygon can be grabbed cleanly.
 
 Once selected:
 
@@ -111,6 +113,13 @@ Self-intersection is not tracked.
 The sidebar on the left lists every object. Each row shows an icon, the
 auto-generated description, and the type. Clicking a row selects the
 object on the canvas (and vice versa).
+
+Objects without an explicit `label` get a default name based on type:
+points/circles/lines show their coordinates; **rectangles** show
+`"Rectangle"`; **polygons** are named by vertex count
+(`"Triangle"` for 3, `"Quadrilateral"` for 4, up to `"Octagon"` for 8;
+beyond that it falls back to `"Polygon (N points)"`). Setting `label`
+in `config.json` or via the editor always wins.
 
 Selecting a row expands an inline editor underneath with the object's
 parameters as input fields. Edit any field and press **Enter** (or click

@@ -60,6 +60,25 @@ export function objectIcon(object: GeomObject): string {
   }
 }
 
+export function polygonNameByVertexCount(count: number): string {
+  switch (count) {
+    case 3:
+      return 'Triangle';
+    case 4:
+      return 'Quadrilateral';
+    case 5:
+      return 'Pentagon';
+    case 6:
+      return 'Hexagon';
+    case 7:
+      return 'Heptagon';
+    case 8:
+      return 'Octagon';
+    default:
+      return `Polygon (${count} points)`;
+  }
+}
+
 export function objectLabel(object: GeomObject): string {
   if (object.label?.trim()) {
     return object.label;
@@ -73,9 +92,9 @@ export function objectLabel(object: GeomObject): string {
     case 'line':
       return `Line (${formatNumber(object.x1)}, ${formatNumber(object.y1)}) → (${formatNumber(object.x2)}, ${formatNumber(object.y2)})`;
     case 'rectangle':
-      return `Rectangle (${formatNumber(object.x)}, ${formatNumber(object.y)}), ${formatNumber(object.w)}×${formatNumber(object.h)}`;
+      return 'Rectangle';
     case 'polygon':
-      return `Polygon (${object.points.length} points)`;
+      return polygonNameByVertexCount(object.points.length);
     case 'function':
       return `y = ${object.expression}`;
     default:
