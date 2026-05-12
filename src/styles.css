@@ -594,6 +594,13 @@ textarea {
   fill: var(--text-tertiary);
 }
 
+.drawing-preview .preview-close-target {
+  fill: none;
+  stroke: var(--shape);
+  stroke-width: 2;
+  opacity: 0.85;
+}
+
 .snap-indicator .snap-ring {
   fill: none;
   stroke: var(--shape);

@@ -1,14 +1,15 @@
 {
-    "objects": [
-      { "id": "leg-bottom", "type": "line", "x1": 0, "y1": 0, "x2": 6, "y2": 0 },
-      { "id": "leg-left", "type": "line", "x1": 0, "y1": 0, "x2": 0, "y2": 4 },
-      { "id": "hypotenuse", "type": "line", "x1": 6, "y1": 0, "x2": 0, "y2": 4 }
-    ],
-    "task": {
-      "question": "What is the area of this right triangle?",
-      "type": "multiple_choice",
-      "options": ["10", "12", "14", "24"],
-      "correctAnswer": "12"
-    }
+  "objects": [
+    { "id": "origin", "type": "point", "x": 0, "y": 0, "label": "Origin" },
+    { "id": "ring", "type": "circle", "cx": 0, "cy": 0, "r": 4 },
+    { "id": "diameter", "type": "line", "x1": -6, "y1": 0, "x2": 6, "y2": 0 },
+    { "id": "parabola", "type": "function", "expression": "x^2 - 4", "label": "y = x² − 4" },
+    { "id": "tri", "type": "polygon", "points": [[3, 3], [6, 3], [4.5, 5.5]], "label": "Triangle" },
+    { "id": "diamond", "type": "rectangle", "x": -6, "y": -6, "w": 3, "h": 3, "rotation": 0.7853981633974483, "label": "rotated square" }
+  ],
+  "task": {
+    "question": "What is the radius of the circle centered at the origin?",
+    "type": "freeform",
+    "correctAnswer": "4"
   }
-  
+}

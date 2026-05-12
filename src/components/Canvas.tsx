@@ -24,6 +24,7 @@ type HandleKind =
   | { type: 'rect-rotate' }
   | { type: 'circle-radius' }
   | { type: 'polygon-vertex'; index: number }
+  | { type: 'polygon-rotate' }
   | { type: 'translate' };
 
 type Handle = {
@@ -65,6 +66,9 @@ const INITIAL_SCALE = 60;
 const ZOOM_PER_PIXEL = 1.0015;
 const MIN_DRAG_PX = 2;
 const SNAP_PX = 10;
+const POLYGON_CLOSE_PX = 12;
+const DOUBLE_CLICK_MS = 350;
+const DOUBLE_CLICK_PX = 6;
 
 export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selectedId, onSelect }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -82,6 +86,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [selectedIntersection, setSelectedIntersection] = useState<[number, number] | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const lastClickRef = useRef<{ time: number; screenX: number; screenY: number } | null>(null);
   const [hoverClickable, setHoverClickable] = useState(false);
 
   const effectiveTool: Tool = spaceHeld ? 'move' : activeTool;
@@ -191,11 +196,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
       }
       if (event.key === 'Enter' && drawing.kind === 'polygon' && drawing.points.length >= 3) {
         event.preventDefault();
-        onAddObject({
-          id: createObjectId('poly'),
-          type: 'polygon',
-          points: drawing.points,
-        });
+        onAddObject(makePolygon(drawing.points));
         setDrawing({ kind: 'idle' });
       }
     }
@@ -310,24 +311,42 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
         setDrawing({ kind: 'rectangle', start: world, current: world });
         return;
       case 'polygon': {
-        if (drawing.kind === 'polygon' && event.detail >= 2 && drawing.points.length >= 3) {
-          onAddObject({
-            id: createObjectId('poly'),
-            type: 'polygon',
-            points: drawing.points,
-          });
-          setDrawing({ kind: 'idle' });
-          return;
+        const inProgress = drawing.kind === 'polygon' ? drawing : null;
+        // 1. Auto-close: click near the starting vertex with at least 3 placed.
+        if (inProgress && inProgress.points.length >= 3) {
+          const [fx, fy] = inProgress.points[0];
+          if (Math.hypot(world[0] - fx, world[1] - fy) * view.scale <= POLYGON_CLOSE_PX) {
+            onAddObject(makePolygon(inProgress.points));
+            setDrawing({ kind: 'idle' });
+            lastClickRef.current = null;
+            return;
+          }
         }
-        if (drawing.kind === 'polygon') {
+        // 2. Double-click fallback: two rapid clicks near the same screen point.
+        if (inProgress && inProgress.points.length >= 3) {
+          const last = lastClickRef.current;
+          if (
+            last &&
+            event.timeStamp - last.time <= DOUBLE_CLICK_MS &&
+            Math.hypot(event.clientX - last.screenX, event.clientY - last.screenY) <= DOUBLE_CLICK_PX
+          ) {
+            onAddObject(makePolygon(inProgress.points));
+            setDrawing({ kind: 'idle' });
+            lastClickRef.current = null;
+            return;
+          }
+        }
+        // 3. Normal append.
+        if (inProgress) {
           setDrawing({
             kind: 'polygon',
-            points: [...drawing.points, world],
+            points: [...inProgress.points, world],
             current: world,
           });
         } else {
           setDrawing({ kind: 'polygon', points: [world], current: world });
         }
+        lastClickRef.current = { time: event.timeStamp, screenX: event.clientX, screenY: event.clientY };
         return;
       }
     }
@@ -354,6 +373,10 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
         // Rotation snaps the angle to 15° increments when close, not the cursor position.
         const rotated = applyHandleDrag(editing.original, editing.handle, raw, editing.anchorWorld);
         next = snapRectRotation(rotated);
+        setSnapHint(null);
+      } else if (editing.handle.type === 'polygon-rotate') {
+        // Polygon rotation snaps the rotation delta internally; pass the raw cursor.
+        next = applyHandleDrag(editing.original, editing.handle, raw, editing.anchorWorld);
         setSnapHint(null);
       } else {
         const snap = snapToGrid(raw, grid.step, view.scale);
@@ -689,7 +712,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
             <g className="handles-layer">
               {handles.map((handle, index) => {
                 const [hx, hy] = worldToScreen(handle.world[0], handle.world[1]);
-                if (handle.kind.type === 'rect-rotate') {
+                if (handle.kind.type === 'rect-rotate' || handle.kind.type === 'polygon-rotate') {
                   return (
                     <circle
                       key={`handle-${index}`}
@@ -829,6 +852,15 @@ function DrawingPreview({ drawing, worldToScreen, view }: DrawingPreviewProps) {
     const placedScreen = drawing.points.map(([x, y]) => worldToScreen(x, y));
     const [cx, cy] = worldToScreen(drawing.current[0], drawing.current[1]);
     const linePoints = [...placedScreen.map(([x, y]) => `${x},${y}`), `${cx},${cy}`].join(' ');
+    let closeHint: { x: number; y: number } | null = null;
+    if (drawing.points.length >= 3) {
+      const first = drawing.points[0];
+      const distPx = Math.hypot(drawing.current[0] - first[0], drawing.current[1] - first[1]) * view.scale;
+      if (distPx <= POLYGON_CLOSE_PX) {
+        const [fx, fy] = placedScreen[0];
+        closeHint = { x: fx, y: fy };
+      }
+    }
     return (
       <g className="drawing-preview">
         {placedScreen.length >= 1 && (
@@ -838,6 +870,7 @@ function DrawingPreview({ drawing, worldToScreen, view }: DrawingPreviewProps) {
           <circle key={index} cx={x} cy={y} r={3} className="preview-anchor" />
         ))}
         <circle cx={cx} cy={cy} r={2.5} className="preview-cursor" />
+        {closeHint && <circle cx={closeHint.x} cy={closeHint.y} r={9} className="preview-close-target" />}
       </g>
     );
   }
@@ -1240,14 +1273,77 @@ function getHandles(object: GeomObject, viewScale = 1): Handle[] {
     }
     case 'circle':
       return [{ kind: { type: 'circle-radius' }, world: [object.cx + object.r, object.cy] }];
-    case 'polygon':
-      return object.points.map((point, index) => ({
+    case 'polygon': {
+      const vertexHandles: Handle[] = object.points.map((point, index) => ({
         kind: { type: 'polygon-vertex', index },
         world: point,
       }));
+      if (object.points.length === 0) return vertexHandles;
+      // Anchor the rotation handle to the vertex farthest from the centroid plus
+      // a small outward offset. This way the handle rotates smoothly with the
+      // polygon instead of jumping around as the axis-aligned bbox changes.
+      const centroid = polygonCentroid(object.points);
+      let farthestIdx = 0;
+      let farthestDist = -1;
+      for (let i = 0; i < object.points.length; i += 1) {
+        const [x, y] = object.points[i];
+        const d = Math.hypot(x - centroid[0], y - centroid[1]);
+        if (d > farthestDist) {
+          farthestDist = d;
+          farthestIdx = i;
+        }
+      }
+      const ref = object.points[farthestIdx];
+      const dx = ref[0] - centroid[0];
+      const dy = ref[1] - centroid[1];
+      const len = Math.hypot(dx, dy);
+      const offset = 14 / Math.max(viewScale, 1e-6);
+      const handleWorld: [number, number] =
+        len > 1e-9
+          ? [ref[0] + (dx / len) * offset, ref[1] + (dy / len) * offset]
+          : [centroid[0] + offset, centroid[1]];
+      vertexHandles.push({
+        kind: { type: 'polygon-rotate' },
+        world: handleWorld,
+      });
+      return vertexHandles;
+    }
     default:
       return [];
   }
+}
+
+function makePolygon(points: [number, number][]): GeomObject {
+  const label = defaultPolygonLabel(points.length);
+  const polygon: GeomObject = { id: createObjectId('poly'), type: 'polygon', points };
+  if (label) polygon.label = label;
+  return polygon;
+}
+
+function defaultPolygonLabel(vertexCount: number): string | undefined {
+  switch (vertexCount) {
+    case 3:
+      return 'Triangle';
+    case 4:
+      return 'Quadrilateral';
+    case 5:
+      return 'Pentagon';
+    case 6:
+      return 'Hexagon';
+    default:
+      return undefined;
+  }
+}
+
+function polygonCentroid(points: [number, number][]): [number, number] {
+  let sx = 0;
+  let sy = 0;
+  for (const [x, y] of points) {
+    sx += x;
+    sy += y;
+  }
+  const n = points.length || 1;
+  return [sx / n, sy / n];
 }
 
 function rectangleCorners(rect: Extract<GeomObject, { type: 'rectangle' }>): [number, number][] {
@@ -1357,6 +1453,26 @@ function applyHandleDrag(
     case 'polygon-vertex': {
       if (original.type !== 'polygon') return original;
       const points = original.points.map((point, index) => (index === handle.index ? cursor : point));
+      return { ...original, points };
+    }
+    case 'polygon-rotate': {
+      if (original.type !== 'polygon' || !anchor || original.points.length === 0) return original;
+      const center = polygonCentroid(original.points);
+      const startAngle = Math.atan2(anchor[1] - center[1], anchor[0] - center[0]);
+      const nowAngle = Math.atan2(cursor[1] - center[1], cursor[0] - center[0]);
+      let delta = nowAngle - startAngle;
+      // Snap rotation delta to 15° increments when within 3°.
+      const snapStep = Math.PI / 12;
+      const snapTol = Math.PI / 60;
+      const snapped = Math.round(delta / snapStep) * snapStep;
+      if (Math.abs(delta - snapped) <= snapTol) delta = snapped;
+      const cos = Math.cos(delta);
+      const sin = Math.sin(delta);
+      const points: [number, number][] = original.points.map(([x, y]) => {
+        const dx = x - center[0];
+        const dy = y - center[1];
+        return [center[0] + dx * cos - dy * sin, center[1] + dx * sin + dy * cos];
+      });
       return { ...original, points };
     }
     default:
