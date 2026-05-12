@@ -4,7 +4,7 @@ export type GeomObject =
   | { id: string; type: 'point'; x: number; y: number; label?: string }
   | { id: string; type: 'circle'; cx: number; cy: number; r: number; label?: string }
   | { id: string; type: 'line'; x1: number; y1: number; x2: number; y2: number; label?: string }
-  | { id: string; type: 'rectangle'; x: number; y: number; w: number; h: number; label?: string }
+  | { id: string; type: 'rectangle'; x: number; y: number; w: number; h: number; rotation?: number; label?: string }
   | { id: string; type: 'polygon'; points: [number, number][]; label?: string }
   | { id: string; type: 'function'; expression: string; label?: string };
 

@@ -47,21 +47,36 @@ function collectPair(a, b, out, viewRange) {
   }
 }
 
+function rectangleCorners(rect) {
+  const angle = rect.rotation ?? 0;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const local = [
+    [rect.x, rect.y],
+    [rect.x + rect.w, rect.y],
+    [rect.x + rect.w, rect.y + rect.h],
+    [rect.x, rect.y + rect.h],
+  ];
+  return local.map(([px, py]) => {
+    const dx = px - cx;
+    const dy = py - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+  });
+}
+
 function linearSegments(obj) {
   switch (obj.type) {
     case 'line':
       return [[[obj.x1, obj.y1], [obj.x2, obj.y2]]];
     case 'rectangle': {
-      const x1 = obj.x;
-      const y1 = obj.y;
-      const x2 = obj.x + obj.w;
-      const y2 = obj.y + obj.h;
-      return [
-        [[x1, y1], [x2, y1]],
-        [[x2, y1], [x2, y2]],
-        [[x2, y2], [x1, y2]],
-        [[x1, y2], [x1, y1]],
-      ];
+      const corners = rectangleCorners(obj);
+      const segs = [];
+      for (let i = 0; i < 4; i += 1) {
+        segs.push([corners[i], corners[(i + 1) % 4]]);
+      }
+      return segs;
     }
     case 'polygon': {
       const segs = [];

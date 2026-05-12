@@ -21,6 +21,7 @@ type HandleKind =
   | { type: 'point-move' }
   | { type: 'line-end'; index: 0 | 1 }
   | { type: 'rect-corner'; cornerIndex: 0 | 1 | 2 | 3 }
+  | { type: 'rect-rotate' }
   | { type: 'circle-radius' }
   | { type: 'polygon-vertex'; index: number }
   | { type: 'translate' };
@@ -241,7 +242,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     if (effectiveTool === 'move' && selectedObject && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
-      const handleHit = pickHandle(getHandles(selectedObject), raw, view.scale);
+      const handleHit = pickHandle(getHandles(selectedObject, view.scale), raw, view.scale);
       if (handleHit) {
         containerRef.current.setPointerCapture(event.pointerId);
         setEditing({
@@ -349,9 +350,14 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
         const [snapDx, snapDy] = snapDelta(dx, dy, grid.step, view.scale);
         next = translateObject(editing.original, snapDx, snapDy);
         setSnapHint(null);
+      } else if (editing.handle.type === 'rect-rotate') {
+        // Rotation snaps the angle to 15° increments when close, not the cursor position.
+        const rotated = applyHandleDrag(editing.original, editing.handle, raw, editing.anchorWorld);
+        next = snapRectRotation(rotated);
+        setSnapHint(null);
       } else {
         const snap = snapToGrid(raw, grid.step, view.scale);
-        next = applyHandleDrag(editing.original, editing.handle, snap.world);
+        next = applyHandleDrag(editing.original, editing.handle, snap.world, editing.anchorWorld);
         setSnapHint(snap.snapped ? snap.world : null);
       }
       setEditing((current) => (current ? { ...current, preview: next } : current));
@@ -429,7 +435,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     const rect = el.getBoundingClientRect();
     const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
     if (selectedObject) {
-      const handleHit = pickHandle(getHandles(selectedObject), raw, view.scale);
+      const handleHit = pickHandle(getHandles(selectedObject, view.scale), raw, view.scale);
       if (handleHit) {
         if (hoverClickable) setHoverClickable(false);
         return;
@@ -574,9 +580,9 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
   );
   const handles = useMemo(() => {
     if (!selectedObject) return [] as Handle[];
-    if (editing) return getHandles(editing.preview);
-    return getHandles(selectedObject);
-  }, [selectedObject, editing]);
+    if (editing) return getHandles(editing.preview, view.scale);
+    return getHandles(selectedObject, view.scale);
+  }, [selectedObject, editing, view.scale]);
 
   useEffect(() => {
     if (!selectedIntersection) return;
@@ -683,6 +689,17 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
             <g className="handles-layer">
               {handles.map((handle, index) => {
                 const [hx, hy] = worldToScreen(handle.world[0], handle.world[1]);
+                if (handle.kind.type === 'rect-rotate') {
+                  return (
+                    <circle
+                      key={`handle-${index}`}
+                      cx={hx}
+                      cy={hy}
+                      r={5}
+                      className="rotate-handle"
+                    />
+                  );
+                }
                 return (
                   <rect
                     key={`handle-${index}`}
@@ -844,7 +861,7 @@ function GeometryObject({ object, view, size, worldToScreen, isSelected }: Geome
       const [sx, sy] = worldToScreen(object.x, object.y);
       return (
         <g>
-          <circle cx={sx} cy={sy} r={isSelected ? 7 : 6} className={fillClass} />
+          <circle cx={sx} cy={sy} r={isSelected ? 5 : 4} className={`point-marker${isSelected ? ' is-selected' : ''}`} />
           <ObjectLabel screenX={sx} screenY={sy} label={object.label} />
         </g>
       );
@@ -869,23 +886,18 @@ function GeometryObject({ object, view, size, worldToScreen, isSelected }: Geome
       );
     }
     case 'rectangle': {
-      const left = Math.min(object.x, object.x + object.w);
-      const top = Math.max(object.y, object.y + object.h);
-      const [sx, sy] = worldToScreen(left, top);
+      const corners = rectangleCorners(object);
+      const screenCorners = corners.map(([wx, wy]) => worldToScreen(wx, wy));
+      const cx = object.x + object.w / 2;
+      const cy = object.y + object.h / 2;
+      const [labelX, labelY] = worldToScreen(cx, cy);
       return (
         <g>
-          <rect
-            x={sx}
-            y={sy}
-            width={Math.abs(object.w) * view.scale}
-            height={Math.abs(object.h) * view.scale}
+          <polygon
+            points={screenCorners.map(([x, y]) => `${x},${y}`).join(' ')}
             className={strokeClass}
           />
-          <ObjectLabel
-            screenX={sx + (Math.abs(object.w) * view.scale) / 2}
-            screenY={sy + (Math.abs(object.h) * view.scale) / 2}
-            label={object.label}
-          />
+          <ObjectLabel screenX={labelX} screenY={labelY} label={object.label} />
         </g>
       );
     }
@@ -1117,16 +1129,7 @@ function hitDistancePx(object: GeomObject, world: [number, number], scale: numbe
     case 'line':
       return distanceToSegment(world, [object.x1, object.y1], [object.x2, object.y2]) * scale;
     case 'rectangle': {
-      const xLow = Math.min(object.x, object.x + object.w);
-      const xHigh = Math.max(object.x, object.x + object.w);
-      const yLow = Math.min(object.y, object.y + object.h);
-      const yHigh = Math.max(object.y, object.y + object.h);
-      const corners: [number, number][] = [
-        [xLow, yLow],
-        [xHigh, yLow],
-        [xHigh, yHigh],
-        [xLow, yHigh],
-      ];
+      const corners = rectangleCorners(object);
       let min = Infinity;
       for (let i = 0; i < 4; i += 1) {
         const a = corners[i];
@@ -1200,26 +1203,40 @@ function pointInPolygon(p: [number, number], polygon: [number, number][]): boole
 
 const HANDLE_PICK_PX = 11;
 
-function getHandles(object: GeomObject): Handle[] {
+function getHandles(object: GeomObject, viewScale = 1): Handle[] {
   switch (object.type) {
     case 'point':
-      return [{ kind: { type: 'point-move' }, world: [object.x, object.y] }];
+      // Points have no resize handles — translate via body drag instead.
+      return [];
     case 'line':
       return [
         { kind: { type: 'line-end', index: 0 }, world: [object.x1, object.y1] },
         { kind: { type: 'line-end', index: 1 }, world: [object.x2, object.y2] },
       ];
     case 'rectangle': {
-      const x = object.x;
-      const y = object.y;
-      const xw = object.x + object.w;
-      const yh = object.y + object.h;
-      return [
-        { kind: { type: 'rect-corner', cornerIndex: 0 }, world: [x, y] },
-        { kind: { type: 'rect-corner', cornerIndex: 1 }, world: [xw, y] },
-        { kind: { type: 'rect-corner', cornerIndex: 2 }, world: [xw, yh] },
-        { kind: { type: 'rect-corner', cornerIndex: 3 }, world: [x, yh] },
-      ];
+      const corners = rectangleCorners(object);
+      const handles: Handle[] = corners.map((world, index) => ({
+        kind: { type: 'rect-corner', cornerIndex: index as 0 | 1 | 2 | 3 },
+        world,
+      }));
+      const angle = object.rotation ?? 0;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const cx = object.x + object.w / 2;
+      const cy = object.y + object.h / 2;
+      const offset = 12 / Math.max(viewScale, 1e-6);
+      // Place the rotation handle just outside the rectangle's math bottom-right
+      // (which renders as screen bottom-right when h > 0) — adjacent to the corner
+      // resize square with a small gap.
+      const lx = object.x + object.w + offset;
+      const ly = object.y - offset;
+      const dx = lx - cx;
+      const dy = ly - cy;
+      handles.push({
+        kind: { type: 'rect-rotate' },
+        world: [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos],
+      });
+      return handles;
     }
     case 'circle':
       return [{ kind: { type: 'circle-radius' }, world: [object.cx + object.r, object.cy] }];
@@ -1233,6 +1250,25 @@ function getHandles(object: GeomObject): Handle[] {
   }
 }
 
+function rectangleCorners(rect: Extract<GeomObject, { type: 'rectangle' }>): [number, number][] {
+  const angle = rect.rotation ?? 0;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const local: [number, number][] = [
+    [rect.x, rect.y],
+    [rect.x + rect.w, rect.y],
+    [rect.x + rect.w, rect.y + rect.h],
+    [rect.x, rect.y + rect.h],
+  ];
+  return local.map(([px, py]) => {
+    const dx = px - cx;
+    const dy = py - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+  });
+}
+
 function pickHandle(handles: Handle[], world: [number, number], scale: number): Handle | null {
   let best: { handle: Handle; distance: number } | null = null;
   for (const handle of handles) {
@@ -1244,7 +1280,12 @@ function pickHandle(handles: Handle[], world: [number, number], scale: number): 
   return best?.handle ?? null;
 }
 
-function applyHandleDrag(original: GeomObject, handle: HandleKind, cursor: [number, number]): GeomObject {
+function applyHandleDrag(
+  original: GeomObject,
+  handle: HandleKind,
+  cursor: [number, number],
+  anchor?: [number, number],
+): GeomObject {
   switch (handle.type) {
     case 'point-move':
       if (original.type !== 'point') return original;
@@ -1256,18 +1297,56 @@ function applyHandleDrag(original: GeomObject, handle: HandleKind, cursor: [numb
     }
     case 'rect-corner': {
       if (original.type !== 'rectangle') return original;
-      const corners: [number, number][] = [
+      const angle = original.rotation ?? 0;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const oldCx = original.x + original.w / 2;
+      const oldCy = original.y + original.h / 2;
+      // World position of the opposite corner — stays fixed during the drag.
+      const localCorners: [number, number][] = [
         [original.x, original.y],
         [original.x + original.w, original.y],
         [original.x + original.w, original.y + original.h],
         [original.x, original.y + original.h],
       ];
-      const opposite = corners[(handle.cornerIndex + 2) % 4];
-      const x = Math.min(cursor[0], opposite[0]);
-      const y = Math.min(cursor[1], opposite[1]);
-      const w = Math.abs(cursor[0] - opposite[0]);
-      const h = Math.abs(cursor[1] - opposite[1]);
-      return { ...original, x, y, w, h };
+      const oppLocal = localCorners[(handle.cornerIndex + 2) % 4];
+      const oppWorld: [number, number] = [
+        oldCx + (oppLocal[0] - oldCx) * cos - (oppLocal[1] - oldCy) * sin,
+        oldCy + (oppLocal[0] - oldCx) * sin + (oppLocal[1] - oldCy) * cos,
+      ];
+      // Cursor in the rect's un-rotated local frame, relative to oppWorld.
+      const vx = cursor[0] - oppWorld[0];
+      const vy = cursor[1] - oppWorld[1];
+      const localVx = vx * cos + vy * sin;
+      const localVy = -vx * sin + vy * cos;
+      const newW = Math.abs(localVx);
+      const newH = Math.abs(localVy);
+      if (!(newW > 0) || !(newH > 0)) return original;
+      // The opposite corner's local offset from the new center has signs opposite to
+      // the dragged corner's direction in local space.
+      const sx = localVx >= 0 ? 1 : -1;
+      const sy = localVy >= 0 ? 1 : -1;
+      const oppLocalOffsetX = (-sx * newW) / 2;
+      const oppLocalOffsetY = (-sy * newH) / 2;
+      const oppWorldOffsetX = oppLocalOffsetX * cos - oppLocalOffsetY * sin;
+      const oppWorldOffsetY = oppLocalOffsetX * sin + oppLocalOffsetY * cos;
+      const newCx = oppWorld[0] - oppWorldOffsetX;
+      const newCy = oppWorld[1] - oppWorldOffsetY;
+      return {
+        ...original,
+        x: newCx - newW / 2,
+        y: newCy - newH / 2,
+        w: newW,
+        h: newH,
+      };
+    }
+    case 'rect-rotate': {
+      if (original.type !== 'rectangle' || !anchor) return original;
+      const cx = original.x + original.w / 2;
+      const cy = original.y + original.h / 2;
+      const startAngle = Math.atan2(anchor[1] - cy, anchor[0] - cx);
+      const nowAngle = Math.atan2(cursor[1] - cy, cursor[0] - cx);
+      return { ...original, rotation: (original.rotation ?? 0) + (nowAngle - startAngle) };
     }
     case 'circle-radius': {
       if (original.type !== 'circle') return original;
@@ -1322,6 +1401,18 @@ function snapDelta(dx: number, dy: number, step: number, scale: number): [number
   const offsetPx = Math.hypot(dx - sx, dy - sy) * scale;
   if (offsetPx <= SNAP_PX) return [sx, sy];
   return [dx, dy];
+}
+
+const ROTATION_SNAP_RAD = Math.PI / 12; // 15°
+const ROTATION_SNAP_TOL_RAD = Math.PI / 60; // within 3° of a snap target
+
+function snapRectRotation(rect: GeomObject): GeomObject {
+  if (rect.type !== 'rectangle' || rect.rotation === undefined) return rect;
+  const snapped = Math.round(rect.rotation / ROTATION_SNAP_RAD) * ROTATION_SNAP_RAD;
+  if (Math.abs(rect.rotation - snapped) <= ROTATION_SNAP_TOL_RAD) {
+    return { ...rect, rotation: snapped };
+  }
+  return rect;
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {

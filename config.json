@@ -1,10 +1,13 @@
 {
     "objects": [
-      { "id": "triangle", "type": "polygon", "points": [[0, 0], [6, 0], [0, 4]], "label": "right triangle" }
+      { "id": "leg-bottom", "type": "line", "x1": 0, "y1": 0, "x2": 6, "y2": 0 },
+      { "id": "leg-left", "type": "line", "x1": 0, "y1": 0, "x2": 0, "y2": 4 },
+      { "id": "hypotenuse", "type": "line", "x1": 6, "y1": 0, "x2": 0, "y2": 4 }
     ],
     "task": {
       "question": "What is the area of this right triangle?",
-      "type": "freeform",
+      "type": "multiple_choice",
+      "options": ["10", "12", "14", "24"],
       "correctAnswer": "12"
     }
   }

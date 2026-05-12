@@ -232,7 +232,7 @@ textarea {
 
 .sidebar-header h2 {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -303,14 +303,14 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   font-weight: 500;
   color: var(--text-primary);
 }
 
 .object-details span {
   color: var(--text-tertiary);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   text-transform: lowercase;
   font-variant: small-caps;
   letter-spacing: 0.03em;
@@ -357,7 +357,7 @@ textarea {
 .editor-field span {
   font-family: 'Times New Roman', Georgia, serif;
   font-style: italic;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
   padding-left: 0.1rem;
@@ -508,7 +508,7 @@ textarea {
 .grid-label {
   fill: var(--text-tertiary);
   font-family: 'Times New Roman', Georgia, serif;
-  font-size: 11px;
+  font-size: 13px;
   font-feature-settings: 'tnum';
   paint-order: stroke;
   stroke: rgba(255, 255, 255, 0.95);
@@ -521,6 +521,17 @@ textarea {
 
 .shape-fill {
   fill: var(--shape);
+}
+
+.point-marker {
+  fill: var(--shape);
+  stroke: #ffffff;
+  stroke-width: 1.25;
+}
+
+.point-marker.is-selected {
+  fill: #000;
+  stroke-width: 1.5;
 }
 
 .shape-stroke {
@@ -613,7 +624,7 @@ textarea {
 .intersection-label {
   fill: #1a1a1a;
   font-family: 'Times New Roman', Georgia, serif;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   font-feature-settings: 'tnum';
   paint-order: stroke;
@@ -629,12 +640,23 @@ textarea {
   cursor: nwse-resize;
 }
 
+.rotate-handle {
+  fill: #fff;
+  stroke: #1a1a1a;
+  stroke-width: 1.25;
+  cursor: grab;
+}
+
+.rotate-handle:active {
+  cursor: grabbing;
+}
+
 
 .object-label {
   fill: var(--text-primary);
   font-family: 'Times New Roman', Georgia, serif;
   font-style: italic;
-  font-size: 14px;
+  font-size: 16px;
   paint-order: stroke;
   stroke: rgba(255, 255, 255, 0.95);
   stroke-width: 3px;

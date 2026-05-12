@@ -227,6 +227,16 @@ function ObjectEditor({ object, onUpdate }: ObjectEditorProps) {
           <NumberField label="y" value={object.y} onCommit={(y) => onUpdate({ ...object, y })} />
           <NumberField label="w" value={object.w} onCommit={(w) => onUpdate({ ...object, w })} />
           <NumberField label="h" value={object.h} onCommit={(h) => onUpdate({ ...object, h })} />
+          <NumberField
+            label="rot°"
+            value={radToDeg(object.rotation ?? 0)}
+            onCommit={(deg) => {
+              const rotation = degToRad(normalizeAngleDeg(deg));
+              const next = { ...object, rotation };
+              if (rotation === 0) delete (next as { rotation?: number }).rotation;
+              onUpdate(next);
+            }}
+          />
           {labelField}
         </>
       )}
@@ -375,6 +385,22 @@ function TextField({ label, value, onCommit, mono, full }: TextFieldProps) {
 
 function formatDraft(value: number): string {
   return formatNumber(value);
+}
+
+function radToDeg(rad: number): number {
+  return (rad * 180) / Math.PI;
+}
+
+function degToRad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+function normalizeAngleDeg(deg: number): number {
+  // Keep the editor value in (-180, 180] so users see clean numbers across full turns.
+  let value = deg % 360;
+  if (value > 180) value -= 360;
+  if (value <= -180) value += 360;
+  return value;
 }
 
 function formatPoints(points: [number, number][]): string {
