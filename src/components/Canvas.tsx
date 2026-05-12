@@ -82,7 +82,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ centerX: 0, centerY: 0, scale: INITIAL_SCALE });
   const [drawing, setDrawing] = useState<Drawing>({ kind: 'idle' });
-  const [snapHint, setSnapHint] = useState<[number, number] | null>(null);
+  const [snapHint, setSnapHint] = useState<{ world: [number, number]; kind: SnapKind } | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [selectedIntersection, setSelectedIntersection] = useState<[number, number] | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -209,7 +209,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     const rect = el.getBoundingClientRect();
     const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
     if (effectiveTool === 'move') return raw;
-    return snapToGrid(raw, grid.step, view.scale).world;
+    return snapCursor(raw, view.scale, grid.step, snapTargetIntersections).world;
   }
 
   function startPan(event: React.PointerEvent<HTMLDivElement>) {
@@ -385,9 +385,21 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
       if (editing.handle.type === 'translate') {
         const dx = raw[0] - editing.anchorWorld[0];
         const dy = raw[1] - editing.anchorWorld[1];
-        const [snapDx, snapDy] = snapDelta(dx, dy, grid.step, view.scale);
-        next = translateObject(editing.original, snapDx, snapDy);
-        setSnapHint(null);
+        const isectSnap = findTranslateIntersectionSnap(
+          editing.original,
+          dx,
+          dy,
+          snapTargetIntersections,
+          view.scale,
+        );
+        if (isectSnap) {
+          next = translateObject(editing.original, isectSnap.dx, isectSnap.dy);
+          setSnapHint({ world: isectSnap.intersection, kind: 'intersection' });
+        } else {
+          const [snapDx, snapDy] = snapDelta(dx, dy, grid.step, view.scale);
+          next = translateObject(editing.original, snapDx, snapDy);
+          setSnapHint(null);
+        }
       } else if (editing.handle.type === 'rect-rotate') {
         // Rotation snaps the angle to 15° increments when close, not the cursor position.
         const rotated = applyHandleDrag(editing.original, editing.handle, raw, editing.anchorWorld);
@@ -398,9 +410,9 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
         next = applyHandleDrag(editing.original, editing.handle, raw, editing.anchorWorld);
         setSnapHint(null);
       } else {
-        const snap = snapToGrid(raw, grid.step, view.scale);
+        const snap = snapCursor(raw, view.scale, grid.step, snapTargetIntersections);
         next = applyHandleDrag(editing.original, editing.handle, snap.world, editing.anchorWorld);
-        setSnapHint(snap.snapped ? snap.world : null);
+        setSnapHint(snap.snapped && snap.kind ? { world: snap.world, kind: snap.kind } : null);
       }
       setEditing((current) => (current ? { ...current, preview: next } : current));
       return;
@@ -451,14 +463,21 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    const snap = snapToGrid(raw, grid.step, view.scale);
-    if (!snap.snapped) {
+    const snap = snapCursor(raw, view.scale, grid.step, snapTargetIntersections);
+    if (!snap.snapped || !snap.kind) {
       setSnapHint((current) => (current === null ? current : null));
       return;
     }
     setSnapHint((current) => {
-      if (current && current[0] === snap.world[0] && current[1] === snap.world[1]) return current;
-      return snap.world;
+      if (
+        current &&
+        current.kind === snap.kind &&
+        current.world[0] === snap.world[0] &&
+        current.world[1] === snap.world[1]
+      ) {
+        return current;
+      }
+      return { world: snap.world, kind: snap.kind! };
     });
   }
 
@@ -625,6 +644,17 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     () => computeIntersections(previewObjects, viewXRange),
     [previewObjects, viewXRange],
   );
+  // Snap candidates exclude the object being edited so its own moving
+  // intersections don't dominate the cursor's snap target. Recomputes only
+  // when the edit identity (or committed objects) change, not on every drag.
+  const editingId = editing?.original.id ?? null;
+  const snapTargetIntersections = useMemo(() => {
+    if (editingId === null) return intersections;
+    return computeIntersections(
+      objects.filter((object) => object.id !== editingId),
+      viewXRange,
+    );
+  }, [intersections, objects, editingId, viewXRange]);
   const handles = useMemo(() => {
     if (!selectedObject) return [] as Handle[];
     if (editing) return getHandles(editing.preview, view.scale);
@@ -782,7 +812,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
           </g>
           <DrawingPreview drawing={drawing} worldToScreen={worldToScreen} view={view} />
           {snapHint && (
-            <SnapIndicator world={snapHint} worldToScreen={worldToScreen} />
+            <SnapIndicator world={snapHint.world} kind={snapHint.kind} worldToScreen={worldToScreen} />
           )}
         </svg>
       )}
@@ -1554,32 +1584,113 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
-function snapToGrid(
-  world: [number, number],
-  step: number,
-  scale: number,
-): { world: [number, number]; snapped: boolean } {
-  if (!(step > 0)) return { world, snapped: false };
-  const sx = Math.round(world[0] / step) * step;
-  const sy = Math.round(world[1] / step) * step;
-  const dxPx = (world[0] - sx) * scale;
-  const dyPx = (world[1] - sy) * scale;
-  if (Math.hypot(dxPx, dyPx) <= SNAP_PX) {
-    return { world: [sx, sy], snapped: true };
+type SnapKind = 'grid' | 'intersection';
+
+type SnapResult = {
+  world: [number, number];
+  snapped: boolean;
+  kind: SnapKind | null;
+};
+
+function translateAnchorPoints(object: GeomObject): [number, number][] {
+  switch (object.type) {
+    case 'point':
+      return [[object.x, object.y]];
+    case 'line':
+      return [
+        [object.x1, object.y1],
+        [object.x2, object.y2],
+      ];
+    case 'circle':
+      return [[object.cx, object.cy]];
+    case 'rectangle':
+      return rectangleCorners(object);
+    case 'polygon':
+      return object.points;
+    default:
+      return [];
   }
-  return { world, snapped: false };
+}
+
+function findTranslateIntersectionSnap(
+  object: GeomObject,
+  dx: number,
+  dy: number,
+  intersections: [number, number][],
+  scale: number,
+): { dx: number; dy: number; intersection: [number, number] } | null {
+  if (intersections.length === 0) return null;
+  const anchors = translateAnchorPoints(object);
+  let best: {
+    dx: number;
+    dy: number;
+    intersection: [number, number];
+    distancePx: number;
+  } | null = null;
+  for (const [ax, ay] of anchors) {
+    const projectedX = ax + dx;
+    const projectedY = ay + dy;
+    for (const isect of intersections) {
+      const distPx = Math.hypot((projectedX - isect[0]) * scale, (projectedY - isect[1]) * scale);
+      if (distPx > SNAP_PX) continue;
+      if (!best || distPx < best.distancePx) {
+        best = {
+          dx: isect[0] - ax,
+          dy: isect[1] - ay,
+          intersection: isect,
+          distancePx: distPx,
+        };
+      }
+    }
+  }
+  return best ? { dx: best.dx, dy: best.dy, intersection: best.intersection } : null;
+}
+
+function snapCursor(
+  world: [number, number],
+  scale: number,
+  step: number,
+  intersections: [number, number][],
+): SnapResult {
+  // Intersection wins on (rough) tie, so check it last and only override grid
+  // when it's strictly closer or within a small bias.
+  let best: { world: [number, number]; distance: number; kind: SnapKind } | null = null;
+
+  if (step > 0) {
+    const gx = Math.round(world[0] / step) * step;
+    const gy = Math.round(world[1] / step) * step;
+    const gridDist = Math.hypot((world[0] - gx) * scale, (world[1] - gy) * scale);
+    if (gridDist <= SNAP_PX) {
+      best = { world: [gx, gy], distance: gridDist, kind: 'grid' };
+    }
+  }
+
+  for (const [ix, iy] of intersections) {
+    const dist = Math.hypot((world[0] - ix) * scale, (world[1] - iy) * scale);
+    if (dist > SNAP_PX) continue;
+    // Intersection beats grid as long as it isn't markedly farther.
+    if (!best || dist <= best.distance + 3 || best.kind === 'grid') {
+      if (!best || dist <= best.distance + (best.kind === 'grid' ? 3 : 0)) {
+        best = { world: [ix, iy], distance: dist, kind: 'intersection' };
+      }
+    }
+  }
+
+  if (best) return { world: best.world, snapped: true, kind: best.kind };
+  return { world, snapped: false, kind: null };
 }
 
 type SnapIndicatorProps = {
   world: [number, number];
+  kind: SnapKind;
   worldToScreen: (x: number, y: number) => [number, number];
 };
 
-function SnapIndicator({ world, worldToScreen }: SnapIndicatorProps) {
+function SnapIndicator({ world, kind, worldToScreen }: SnapIndicatorProps) {
   const [sx, sy] = worldToScreen(world[0], world[1]);
   return (
-    <g className="snap-indicator">
-      <circle cx={sx} cy={sy} r={6} className="snap-ring" />
+    <g className={`snap-indicator is-${kind}`}>
+      <circle cx={sx} cy={sy} r={kind === 'intersection' ? 7 : 6} className="snap-ring" />
       <circle cx={sx} cy={sy} r={1.5} className="snap-dot" />
     </g>
   );

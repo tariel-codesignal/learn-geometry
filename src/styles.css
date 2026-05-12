@@ -613,6 +613,15 @@ textarea {
   opacity: 0.85;
 }
 
+.snap-indicator.is-intersection .snap-ring {
+  stroke: #f59e0b;
+  stroke-width: 2;
+}
+
+.snap-indicator.is-intersection .snap-dot {
+  fill: #f59e0b;
+}
+
 .intersections-layer {
   pointer-events: none;
 }
