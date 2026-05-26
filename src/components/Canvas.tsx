@@ -3,6 +3,9 @@ import {
   createObjectId,
   evaluateFunctionExpression,
   formatNumber,
+  polygonCentroid,
+  polygonWorldPoints,
+  translateObject,
   type GeomObject,
   type Tool,
 } from '../lib/geometry';
@@ -209,7 +212,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     const rect = el.getBoundingClientRect();
     const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
     if (effectiveTool === 'move') return raw;
-    return snapCursor(raw, view.scale, grid.step, snapTargetIntersections).world;
+    return snapCursor(raw, view.scale, grid.step, snapTargetIntersections, snapTargetVertices).world;
   }
 
   function startPan(event: React.PointerEvent<HTMLDivElement>) {
@@ -410,7 +413,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
         next = applyHandleDrag(editing.original, editing.handle, raw, editing.anchorWorld);
         setSnapHint(null);
       } else {
-        const snap = snapCursor(raw, view.scale, grid.step, snapTargetIntersections);
+        const snap = snapCursor(raw, view.scale, grid.step, snapTargetIntersections, snapTargetVertices);
         next = applyHandleDrag(editing.original, editing.handle, snap.world, editing.anchorWorld);
         setSnapHint(snap.snapped && snap.kind ? { world: snap.world, kind: snap.kind } : null);
       }
@@ -463,7 +466,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const raw = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    const snap = snapCursor(raw, view.scale, grid.step, snapTargetIntersections);
+    const snap = snapCursor(raw, view.scale, grid.step, snapTargetIntersections, snapTargetVertices);
     if (!snap.snapped || !snap.kind) {
       setSnapHint((current) => (current === null ? current : null));
       return;
@@ -655,6 +658,17 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
       viewXRange,
     );
   }, [intersections, objects, editingId, viewXRange]);
+  // Collect snap-able vertices from every object except the one being edited:
+  // rect corners (rotated), polygon vertices (rotated), line endpoints, circle
+  // centers, point positions. Function curves contribute nothing.
+  const snapTargetVertices = useMemo(() => {
+    const out: [number, number][] = [];
+    for (const object of objects) {
+      if (editingId !== null && object.id === editingId) continue;
+      out.push(...translateAnchorPoints(object));
+    }
+    return out;
+  }, [objects, editingId]);
   const handles = useMemo(() => {
     if (!selectedObject) return [] as Handle[];
     if (editing) return getHandles(editing.preview, view.scale);
@@ -989,7 +1003,7 @@ function GeometryObject({ object, view, size, worldToScreen, isSelected }: Geome
       );
     }
     case 'polygon': {
-      const points = object.points.map(([x, y]) => worldToScreen(x, y));
+      const points = polygonWorldPoints(object).map(([x, y]) => worldToScreen(x, y));
       const [first] = points;
       return (
         <g>
@@ -1227,10 +1241,11 @@ function hitDistancePx(object: GeomObject, world: [number, number], scale: numbe
       return min * scale;
     }
     case 'polygon': {
+      const pts = polygonWorldPoints(object);
       let min = Infinity;
-      for (let i = 0; i < object.points.length; i += 1) {
-        const a = object.points[i];
-        const b = object.points[(i + 1) % object.points.length];
+      for (let i = 0; i < pts.length; i += 1) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
         const d = distanceToSegment(world, a, b);
         if (d < min) min = d;
       }
@@ -1316,26 +1331,26 @@ function getHandles(object: GeomObject, viewScale = 1): Handle[] {
     case 'circle':
       return [{ kind: { type: 'circle-radius' }, world: [object.cx + object.r, object.cy] }];
     case 'polygon': {
-      const vertexHandles: Handle[] = object.points.map((point, index) => ({
+      const worldPoints = polygonWorldPoints(object);
+      const vertexHandles: Handle[] = worldPoints.map((point, index) => ({
         kind: { type: 'polygon-vertex', index },
         world: point,
       }));
-      if (object.points.length === 0) return vertexHandles;
-      // Anchor the rotation handle to the vertex farthest from the centroid plus
-      // a small outward offset. This way the handle rotates smoothly with the
-      // polygon instead of jumping around as the axis-aligned bbox changes.
-      const centroid = polygonCentroid(object.points);
+      if (worldPoints.length === 0) return vertexHandles;
+      // The centroid of the local points equals the centroid of the rotated
+      // world points (rotation around centroid leaves it fixed).
+      const centroid = polygonCentroid(worldPoints);
       let farthestIdx = 0;
       let farthestDist = -1;
-      for (let i = 0; i < object.points.length; i += 1) {
-        const [x, y] = object.points[i];
+      for (let i = 0; i < worldPoints.length; i += 1) {
+        const [x, y] = worldPoints[i];
         const d = Math.hypot(x - centroid[0], y - centroid[1]);
         if (d > farthestDist) {
           farthestDist = d;
           farthestIdx = i;
         }
       }
-      const ref = object.points[farthestIdx];
+      const ref = worldPoints[farthestIdx];
       const dx = ref[0] - centroid[0];
       const dy = ref[1] - centroid[1];
       const len = Math.hypot(dx, dy);
@@ -1379,17 +1394,6 @@ function defaultPolygonLabel(vertexCount: number): string | undefined {
     default:
       return undefined;
   }
-}
-
-function polygonCentroid(points: [number, number][]): [number, number] {
-  let sx = 0;
-  let sy = 0;
-  for (const [x, y] of points) {
-    sx += x;
-    sy += y;
-  }
-  const n = points.length || 1;
-  return [sx / n, sy / n];
 }
 
 function rectangleCorners(rect: Extract<GeomObject, { type: 'rectangle' }>): [number, number][] {
@@ -1498,8 +1502,15 @@ function applyHandleDrag(
     }
     case 'polygon-vertex': {
       if (original.type !== 'polygon') return original;
-      const points = original.points.map((point, index) => (index === handle.index ? cursor : point));
-      return { ...original, points };
+      // Rebase: bake current rotation into points, drop rotation, then set the
+      // dragged vertex to the cursor's world position.
+      const worldPts = polygonWorldPoints(original);
+      const points: [number, number][] = worldPts.map((point, index) =>
+        index === handle.index ? cursor : point,
+      );
+      const next: Extract<GeomObject, { type: 'polygon' }> = { ...original, points };
+      if (next.rotation !== undefined) delete (next as { rotation?: number }).rotation;
+      return next;
     }
     case 'polygon-rotate': {
       if (original.type !== 'polygon' || !anchor || original.points.length === 0) return original;
@@ -1512,14 +1523,8 @@ function applyHandleDrag(
       const snapTol = Math.PI / 60;
       const snapped = Math.round(delta / snapStep) * snapStep;
       if (Math.abs(delta - snapped) <= snapTol) delta = snapped;
-      const cos = Math.cos(delta);
-      const sin = Math.sin(delta);
-      const points: [number, number][] = original.points.map(([x, y]) => {
-        const dx = x - center[0];
-        const dy = y - center[1];
-        return [center[0] + dx * cos - dy * sin, center[1] + dx * sin + dy * cos];
-      });
-      return { ...original, points };
+      const next = (original.rotation ?? 0) + delta;
+      return { ...original, rotation: next };
     }
     default:
       return original;
@@ -1530,31 +1535,6 @@ function geometryChanged(a: GeomObject, b: GeomObject): boolean {
   return JSON.stringify(a) !== JSON.stringify(b);
 }
 
-function translateObject(object: GeomObject, dx: number, dy: number): GeomObject {
-  switch (object.type) {
-    case 'point':
-      return { ...object, x: object.x + dx, y: object.y + dy };
-    case 'line':
-      return {
-        ...object,
-        x1: object.x1 + dx,
-        y1: object.y1 + dy,
-        x2: object.x2 + dx,
-        y2: object.y2 + dy,
-      };
-    case 'rectangle':
-      return { ...object, x: object.x + dx, y: object.y + dy };
-    case 'circle':
-      return { ...object, cx: object.cx + dx, cy: object.cy + dy };
-    case 'polygon':
-      return {
-        ...object,
-        points: object.points.map(([x, y]) => [x + dx, y + dy] as [number, number]),
-      };
-    default:
-      return object;
-  }
-}
 
 function snapDelta(dx: number, dy: number, step: number, scale: number): [number, number] {
   if (!(step > 0)) return [dx, dy];
@@ -1606,7 +1586,7 @@ function translateAnchorPoints(object: GeomObject): [number, number][] {
     case 'rectangle':
       return rectangleCorners(object);
     case 'polygon':
-      return object.points;
+      return polygonWorldPoints(object);
     default:
       return [];
   }
@@ -1651,9 +1631,10 @@ function snapCursor(
   scale: number,
   step: number,
   intersections: [number, number][],
+  vertices: [number, number][] = [],
 ): SnapResult {
-  // Intersection wins on (rough) tie, so check it last and only override grid
-  // when it's strictly closer or within a small bias.
+  // Intersection and vertex points beat grid as long as they're not markedly
+  // farther. Among meaningful points, the strictly closer one wins.
   let best: { world: [number, number]; distance: number; kind: SnapKind } | null = null;
 
   if (step > 0) {
@@ -1665,16 +1646,17 @@ function snapCursor(
     }
   }
 
-  for (const [ix, iy] of intersections) {
-    const dist = Math.hypot((world[0] - ix) * scale, (world[1] - iy) * scale);
-    if (dist > SNAP_PX) continue;
-    // Intersection beats grid as long as it isn't markedly farther.
-    if (!best || dist <= best.distance + 3 || best.kind === 'grid') {
-      if (!best || dist <= best.distance + (best.kind === 'grid' ? 3 : 0)) {
-        best = { world: [ix, iy], distance: dist, kind: 'intersection' };
-      }
+  const considerMeaningful = (px: number, py: number) => {
+    const dist = Math.hypot((world[0] - px) * scale, (world[1] - py) * scale);
+    if (dist > SNAP_PX) return;
+    const slack = best?.kind === 'grid' ? 3 : 0;
+    if (!best || dist <= best.distance + slack) {
+      best = { world: [px, py], distance: dist, kind: 'intersection' };
     }
-  }
+  };
+
+  for (const [ix, iy] of intersections) considerMeaningful(ix, iy);
+  for (const [vx, vy] of vertices) considerMeaningful(vx, vy);
 
   if (best) return { world: best.world, snapped: true, kind: best.kind };
   return { world, snapped: false, kind: null };

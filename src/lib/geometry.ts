@@ -5,7 +5,7 @@ export type GeomObject =
   | { id: string; type: 'circle'; cx: number; cy: number; r: number; label?: string }
   | { id: string; type: 'line'; x1: number; y1: number; x2: number; y2: number; label?: string }
   | { id: string; type: 'rectangle'; x: number; y: number; w: number; h: number; rotation?: number; label?: string }
-  | { id: string; type: 'polygon'; points: [number, number][]; label?: string }
+  | { id: string; type: 'polygon'; points: [number, number][]; rotation?: number; label?: string }
   | { id: string; type: 'function'; expression: string; label?: string };
 
 export type Tool = 'move' | 'point' | 'line' | 'circle' | 'rectangle' | 'polygon';
@@ -25,6 +25,58 @@ export const DEFAULT_RANGE = {
   yMin: -10,
   yMax: 10,
 };
+
+export function polygonCentroid(points: [number, number][]): [number, number] {
+  if (points.length === 0) return [0, 0];
+  let sx = 0;
+  let sy = 0;
+  for (const [x, y] of points) {
+    sx += x;
+    sy += y;
+  }
+  return [sx / points.length, sy / points.length];
+}
+
+export function polygonWorldPoints(
+  polygon: Extract<GeomObject, { type: 'polygon' }>,
+): [number, number][] {
+  const angle = polygon.rotation ?? 0;
+  if (angle === 0 || polygon.points.length === 0) return polygon.points;
+  const [cx, cy] = polygonCentroid(polygon.points);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return polygon.points.map(([x, y]) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+  });
+}
+
+export function translateObject(object: GeomObject, dx: number, dy: number): GeomObject {
+  switch (object.type) {
+    case 'point':
+      return { ...object, x: object.x + dx, y: object.y + dy };
+    case 'line':
+      return {
+        ...object,
+        x1: object.x1 + dx,
+        y1: object.y1 + dy,
+        x2: object.x2 + dx,
+        y2: object.y2 + dy,
+      };
+    case 'rectangle':
+      return { ...object, x: object.x + dx, y: object.y + dy };
+    case 'circle':
+      return { ...object, cx: object.cx + dx, cy: object.cy + dy };
+    case 'polygon':
+      return {
+        ...object,
+        points: object.points.map(([x, y]) => [x + dx, y + dy] as [number, number]),
+      };
+    default:
+      return object;
+  }
+}
 
 export function createObjectId(prefix = 'obj'): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {

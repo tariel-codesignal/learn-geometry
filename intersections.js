@@ -47,6 +47,26 @@ function collectPair(a, b, out, viewRange) {
   }
 }
 
+function polygonWorldPoints(poly) {
+  const angle = poly.rotation ?? 0;
+  if (angle === 0 || poly.points.length === 0) return poly.points;
+  let sx = 0;
+  let sy = 0;
+  for (const [x, y] of poly.points) {
+    sx += x;
+    sy += y;
+  }
+  const cx = sx / poly.points.length;
+  const cy = sy / poly.points.length;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return poly.points.map(([x, y]) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+  });
+}
+
 function rectangleCorners(rect) {
   const angle = rect.rotation ?? 0;
   const cos = Math.cos(angle);
@@ -79,9 +99,10 @@ function linearSegments(obj) {
       return segs;
     }
     case 'polygon': {
+      const pts = polygonWorldPoints(obj);
       const segs = [];
-      for (let i = 0; i < obj.points.length; i += 1) {
-        segs.push([obj.points[i], obj.points[(i + 1) % obj.points.length]]);
+      for (let i = 0; i < pts.length; i += 1) {
+        segs.push([pts[i], pts[(i + 1) % pts.length]]);
       }
       return segs;
     }

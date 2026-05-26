@@ -4,7 +4,14 @@ import { Sidebar } from './components/Sidebar';
 import { TaskPanelMount } from './components/TaskPanelMount';
 import { Toolbar } from './components/Toolbar';
 import { fetchConfig, postState } from './lib/api';
-import type { GeomObject, Tool } from './lib/geometry';
+import { translateObject, type GeomObject, type Tool } from './lib/geometry';
+
+const NUDGE_BY_ARROW: Record<string, [number, number]> = {
+  ArrowUp: [0, 1],
+  ArrowDown: [0, -1],
+  ArrowRight: [1, 0],
+  ArrowLeft: [-1, 0],
+};
 
 export default function App() {
   const [objects, setObjects] = useState<GeomObject[]>([]);
@@ -111,6 +118,18 @@ export default function App() {
         setSelectedId(null);
         commit(objects.filter((object) => object.id !== id));
         return;
+      }
+      const arrowDelta = NUDGE_BY_ARROW[event.key];
+      if (arrowDelta && selectedId) {
+        const selected = objects.find((object) => object.id === selectedId);
+        if (selected && selected.type !== 'function') {
+          event.preventDefault();
+          const multiplier = event.shiftKey ? 5 : 1;
+          const [dx, dy] = arrowDelta;
+          const updated = translateObject(selected, dx * multiplier, dy * multiplier);
+          commit(objects.map((object) => (object.id === selectedId ? updated : object)));
+          return;
+        }
       }
       const meta = event.metaKey || event.ctrlKey;
       if (!meta) return;

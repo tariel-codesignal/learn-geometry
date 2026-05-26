@@ -90,6 +90,8 @@ Once selected:
   corner of a rectangle, or near the outermost vertex of a polygon) to
   rotate the shape around its center. Rotation snaps to **15°** when close.
 - **Delete / Backspace** removes the selected object (undoable).
+- **Arrow keys** nudge the selected object by 1 unit; **Shift + Arrow** nudges
+  by 5 units. Each press is one undo step. Function curves are skipped.
 - All edits commit a single undo step per drag.
 
 ### Intersection points
@@ -260,14 +262,21 @@ default zoom — anything farther will be off-screen until the user pans.
 #### Polygon
 
 ```json
-{ "id": "poly1", "type": "polygon", "points": [[0,0],[6,0],[0,4]] }
+{
+  "id": "poly1",
+  "type": "polygon",
+  "points": [[0,0],[6,0],[0,4]],
+  "rotation": 0.7853981633974483
+}
 ```
 
 - `points` is an array of `[x, y]` pairs, **minimum 3**, in order. The
   polygon closes automatically (no need to repeat the first vertex).
-- Rotation is **baked into the points** — a rotated polygon has its
-  vertices already rotated in `points`. There is no separate rotation
-  field.
+- `rotation` is **optional**, in **radians**, applied counterclockwise
+  around the polygon's centroid (the average of `points`). Default is `0`.
+  Same convention as rectangle rotation. Editing `points` in the sidebar
+  is WYSIWYG: typed coordinates are treated as world positions and any
+  existing rotation resets to 0.
 
 #### Function curve `y = f(x)`
 
@@ -413,6 +422,8 @@ Drop either into `config.json` and reload.
 | `⌘Z` / `Ctrl+Z` | Undo |
 | `⇧⌘Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Redo |
 | `Delete` / `Backspace` | Delete selected object |
+| `↑` `↓` `←` `→` | Nudge the selected object by 1 unit |
+| `Shift` + arrow | Nudge the selected object by 5 units |
 | `Enter` | Close polygon while drawing |
 | `Esc` | Cancel in-progress drawing |
 

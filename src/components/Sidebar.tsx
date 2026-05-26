@@ -1,5 +1,12 @@
 import { Fragment, KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { formatNumber, objectIcon, objectLabel, parseFormula, type GeomObject } from '../lib/geometry';
+import {
+  formatNumber,
+  objectIcon,
+  objectLabel,
+  parseFormula,
+  polygonWorldPoints,
+  type GeomObject,
+} from '../lib/geometry';
 
 type SidebarProps = {
   objects: GeomObject[];
@@ -256,13 +263,28 @@ function ObjectEditor({ object, onUpdate }: ObjectEditorProps) {
         <>
           <TextField
             label="points"
-            value={formatPoints(object.points)}
+            value={formatPoints(polygonWorldPoints(object))}
             onCommit={(value) => {
               const points = parsePointsList(value);
-              if (points) onUpdate({ ...object, points });
+              if (!points) return;
+              // Editing the points field is a WYSIWYG rebase: the typed coords
+              // are interpreted as world positions, rotation resets to 0.
+              const next: GeomObject = { ...object, points };
+              if ('rotation' in next) delete (next as { rotation?: number }).rotation;
+              onUpdate(next);
             }}
             mono
             full
+          />
+          <NumberField
+            label="rot°"
+            value={radToDeg(object.rotation ?? 0)}
+            onCommit={(deg) => {
+              const rotation = degToRad(normalizeAngleDeg(deg));
+              const next = { ...object, rotation };
+              if (rotation === 0) delete (next as { rotation?: number }).rotation;
+              onUpdate(next);
+            }}
           />
           {labelField}
         </>
