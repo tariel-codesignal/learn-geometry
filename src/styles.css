@@ -678,6 +678,29 @@ textarea {
   stroke-width: 3px;
 }
 
+.point-label-editor {
+  position: absolute;
+  z-index: 2;
+}
+
+.point-label-editor input {
+  width: 7rem;
+  padding: 0.15rem 0.4rem;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  font-family: 'Times New Roman', Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  outline: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.point-label-editor input:focus {
+  border-color: var(--accent);
+}
+
 /* Canvas heads-up display */
 
 .canvas-hud {

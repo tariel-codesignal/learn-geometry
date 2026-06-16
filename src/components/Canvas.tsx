@@ -91,6 +91,30 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
   const [editing, setEditing] = useState<Editing | null>(null);
   const lastClickRef = useRef<{ time: number; screenX: number; screenY: number } | null>(null);
   const [hoverClickable, setHoverClickable] = useState(false);
+  const [labelEditing, setLabelEditing] = useState<{
+    objectId: string;
+    worldX: number;
+    worldY: number;
+    draft: string;
+  } | null>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!labelEditing) return;
+    const t = setTimeout(() => labelInputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, [labelEditing?.objectId]);
+
+  function commitLabel() {
+    if (!labelEditing) return;
+    const { objectId, draft } = labelEditing;
+    setLabelEditing(null);
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    const target = objects.find((o) => o.id === objectId);
+    if (!target) return;
+    onUpdateObject({ ...target, label: trimmed });
+  }
 
   const effectiveTool: Tool = spaceHeld ? 'move' : activeTool;
 
@@ -293,14 +317,18 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
     const el = containerRef.current!;
 
     switch (effectiveTool) {
-      case 'point':
+      case 'point': {
+        labelInputRef.current?.blur();
+        const id = createObjectId('point');
         onAddObject({
-          id: createObjectId('point'),
+          id,
           type: 'point',
           x: world[0],
           y: world[1],
         });
+        setLabelEditing({ objectId: id, worldX: world[0], worldY: world[1], draft: '' });
         return;
+      }
       case 'line': {
         // Second click of a click-then-click line: commit if the second point
         // is meaningfully separated from the first; otherwise stay pinned and
@@ -830,6 +858,40 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
           )}
         </svg>
       )}
+      {labelEditing && (() => {
+        const [lx, ly] = worldToScreen(labelEditing.worldX, labelEditing.worldY);
+        return (
+          <div
+            className="point-label-editor"
+            style={{ left: lx + 10, top: ly - 28 }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <input
+              ref={labelInputRef}
+              value={labelEditing.draft}
+              onChange={(event) =>
+                setLabelEditing((current) =>
+                  current ? { ...current, draft: event.target.value } : current,
+                )
+              }
+              onBlur={commitLabel}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setLabelEditing(null);
+                }
+              }}
+              placeholder="label"
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </div>
+        );
+      })()}
       <div
         className="canvas-hud"
         onMouseDown={(event) => {

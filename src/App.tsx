@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from './components/Canvas';
 import { Sidebar } from './components/Sidebar';
 import { TaskPanelMount } from './components/TaskPanelMount';
@@ -50,7 +50,15 @@ export default function App() {
     };
   }, []);
 
+  // Mirrors `objects` synchronously so multiple commits in the same handler
+  // compose instead of overwriting each other via stale closures.
+  const objectsRef = useRef(objects);
+  useEffect(() => {
+    objectsRef.current = objects;
+  }, [objects]);
+
   const sync = useCallback((next: GeomObject[]) => {
+    objectsRef.current = next;
     setObjects(next);
     postState(next)
       .then(() => setStatus(null))
@@ -61,24 +69,24 @@ export default function App() {
 
   const commit = useCallback(
     (next: GeomObject[]) => {
-      setPast((p) => [...p, objects]);
+      setPast((p) => [...p, objectsRef.current]);
       setFuture([]);
       sync(next);
     },
-    [objects, sync],
+    [sync],
   );
 
   function addObject(object: GeomObject) {
-    commit([...objects, object]);
+    commit([...objectsRef.current, object]);
   }
 
   function deleteObject(id: string) {
     if (selectedId === id) setSelectedId(null);
-    commit(objects.filter((object) => object.id !== id));
+    commit(objectsRef.current.filter((object) => object.id !== id));
   }
 
   function updateObject(updated: GeomObject) {
-    commit(objects.map((object) => (object.id === updated.id ? updated : object)));
+    commit(objectsRef.current.map((object) => (object.id === updated.id ? updated : object)));
   }
 
   function clearAll() {
