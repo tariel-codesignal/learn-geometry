@@ -13,6 +13,7 @@ export type Tool = 'move' | 'point' | 'line' | 'circle' | 'rectangle' | 'polygon
 export type GeometryState = {
   objects: GeomObject[];
   sidebarOpen?: boolean;
+  viewCenter?: [number, number];
 };
 
 export type ParseResult =

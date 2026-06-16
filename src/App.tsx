@@ -22,6 +22,7 @@ export default function App() {
   const [activeTool, setActiveTool] = useState<Tool>('move');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [initialSidebarOpen, setInitialSidebarOpen] = useState<boolean | null>(null);
+  const [initialViewCenter, setInitialViewCenter] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -31,6 +32,7 @@ export default function App() {
         if (active) {
           setObjects(state.objects);
           setInitialSidebarOpen(state.sidebarOpen === true);
+          setInitialViewCenter(state.viewCenter ?? null);
           setStatus(null);
         }
       })
@@ -183,6 +185,7 @@ export default function App() {
           onUpdateObject={updateObject}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          initialViewCenter={initialViewCenter}
         />
       </div>
       {(loading || status) && (

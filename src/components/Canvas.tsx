@@ -18,6 +18,7 @@ type CanvasProps = {
   onUpdateObject: (object: GeomObject) => void;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  initialViewCenter: [number, number] | null;
 };
 
 type HandleKind =
@@ -73,7 +74,7 @@ const POLYGON_CLOSE_PX = 12;
 const DOUBLE_CLICK_MS = 350;
 const DOUBLE_CLICK_PX = 6;
 
-export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selectedId, onSelect }: CanvasProps) {
+export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selectedId, onSelect, initialViewCenter }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -84,6 +85,14 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
   } | null>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ centerX: 0, centerY: 0, scale: INITIAL_SCALE });
+  const initialViewAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (initialViewAppliedRef.current) return;
+    if (!initialViewCenter) return;
+    initialViewAppliedRef.current = true;
+    setView((current) => ({ ...current, centerX: initialViewCenter[0], centerY: initialViewCenter[1] }));
+  }, [initialViewCenter]);
   const [drawing, setDrawing] = useState<Drawing>({ kind: 'idle' });
   const [snapHint, setSnapHint] = useState<{ world: [number, number]; kind: SnapKind } | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -646,7 +655,8 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
   }
 
   function resetView() {
-    setView({ centerX: 0, centerY: 0, scale: INITIAL_SCALE });
+    const [cx, cy] = initialViewCenter ?? [0, 0];
+    setView({ centerX: cx, centerY: cy, scale: INITIAL_SCALE });
   }
 
   function zoomBy(factor: number) {

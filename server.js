@@ -15,7 +15,7 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/config', (_request, response) => {
   const cfg = readConfig();
-  response.json({ objects: cfg.objects, sidebarOpen: cfg.sidebarOpen });
+  response.json({ objects: cfg.objects, sidebarOpen: cfg.sidebarOpen, viewCenter: cfg.viewCenter });
 });
 
 app.get('/api/state', (request, response) => {
@@ -130,7 +130,14 @@ function normalizeConfig(value) {
   const objects = Array.isArray(value.objects) ? value.objects : [];
   const task = 'task' in value ? validateTask(value.task) : null;
   const sidebarOpen = typeof value.sidebarOpen === 'boolean' ? value.sidebarOpen : false;
-  return { objects, task, sidebarOpen };
+  const viewCenter =
+    Array.isArray(value.viewCenter) &&
+    value.viewCenter.length === 2 &&
+    Number.isFinite(value.viewCenter[0]) &&
+    Number.isFinite(value.viewCenter[1])
+      ? [value.viewCenter[0], value.viewCenter[1]]
+      : undefined;
+  return { objects, task, sidebarOpen, viewCenter };
 }
 
 function validateTask(task) {

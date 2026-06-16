@@ -92,5 +92,18 @@ function normalizeState(data: unknown): GeometryState {
   return {
     objects: candidate.objects,
     sidebarOpen: typeof candidate.sidebarOpen === 'boolean' ? candidate.sidebarOpen : undefined,
+    viewCenter: parseViewCenter((candidate as { viewCenter?: unknown }).viewCenter),
   };
+}
+
+function parseViewCenter(value: unknown): [number, number] | undefined {
+  if (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    Number.isFinite(value[0]) &&
+    Number.isFinite(value[1])
+  ) {
+    return [value[0], value[1]];
+  }
+  return undefined;
 }

@@ -171,7 +171,7 @@ and proxied through Vite in development.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/config` | Returns `{ objects }` from `config.json`. Always re-reads from disk. |
+| `GET` | `/api/config` | Returns `{ objects, sidebarOpen, viewCenter }` from `config.json`. Always re-reads from disk. |
 | `GET` | `/api/state` | Returns the current in-memory objects array. `?format=text` returns a human-readable summary plus a list of all intersection points. |
 | `POST` | `/api/state` | Body `{ objects: GeomObject[] }`. Replaces the in-memory state. Called automatically by the frontend after every change. |
 | `GET` | `/api/task` | Returns `{ task, submittedAnswer }`. `?format=text` returns a human-readable block including the learner's current answer (or `"(no task configured)"`). |
@@ -192,7 +192,8 @@ The single source of truth for what loads when the app starts.
 {
   "objects":     [ /* GeomObject[] */ ],
   "task":        { /* Task — optional */ },
-  "sidebarOpen": false /* optional, defaults to false */
+  "sidebarOpen": false,    /* optional, defaults to false */
+  "viewCenter":  [0, 0]    /* optional, defaults to [0, 0] (origin) */
 }
 ```
 
@@ -204,6 +205,11 @@ The single source of truth for what loads when the app starts.
   sidebar expanded; `false` (or omitted) starts it collapsed. Users can
   still toggle it during the session; this only controls the initial
   state on page load.
+- `viewCenter` is optional. A `[x, y]` tuple of world coordinates that
+  the canvas is centered on at startup. Defaults to `[0, 0]` (the
+  origin). Both values must be finite numbers; malformed entries are
+  ignored. The "Reset view" button also returns the canvas to this
+  center.
 - Unknown top-level keys are ignored.
 
 ### Object types
