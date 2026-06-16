@@ -15,7 +15,11 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/config', (_request, response) => {
   const cfg = readConfig();
-  response.json({ objects: cfg.objects, sidebarOpen: cfg.sidebarOpen, viewCenter: cfg.viewCenter });
+  response.json({
+    objects: cfg.objects,
+    sidebarOpen: cfg.sidebarOpen,
+    viewCenter: cfg.viewCenter,
+  });
 });
 
 app.get('/api/state', (request, response) => {
@@ -130,14 +134,19 @@ function normalizeConfig(value) {
   const objects = Array.isArray(value.objects) ? value.objects : [];
   const task = 'task' in value ? validateTask(value.task) : null;
   const sidebarOpen = typeof value.sidebarOpen === 'boolean' ? value.sidebarOpen : false;
-  const viewCenter =
-    Array.isArray(value.viewCenter) &&
-    value.viewCenter.length === 2 &&
-    Number.isFinite(value.viewCenter[0]) &&
-    Number.isFinite(value.viewCenter[1])
-      ? [value.viewCenter[0], value.viewCenter[1]]
-      : undefined;
+  const viewCenter = parseViewCenter(value.viewCenter);
   return { objects, task, sidebarOpen, viewCenter };
+}
+
+function parseViewCenter(value) {
+  if (!Array.isArray(value)) return undefined;
+  if (value.length !== 2 && value.length !== 3) return undefined;
+  if (!Number.isFinite(value[0]) || !Number.isFinite(value[1])) return undefined;
+  const result = [value[0], value[1]];
+  if (value.length === 3 && Number.isFinite(value[2]) && value[2] > 0) {
+    result.push(value[2]);
+  }
+  return result;
 }
 
 function validateTask(task) {

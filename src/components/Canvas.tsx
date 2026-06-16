@@ -19,6 +19,7 @@ type CanvasProps = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   initialViewCenter: [number, number] | null;
+  initialViewZoom: number | null;
 };
 
 type HandleKind =
@@ -74,7 +75,7 @@ const POLYGON_CLOSE_PX = 12;
 const DOUBLE_CLICK_MS = 350;
 const DOUBLE_CLICK_PX = 6;
 
-export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selectedId, onSelect, initialViewCenter }: CanvasProps) {
+export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selectedId, onSelect, initialViewCenter, initialViewZoom }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -89,10 +90,14 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
 
   useEffect(() => {
     if (initialViewAppliedRef.current) return;
-    if (!initialViewCenter) return;
+    if (!initialViewCenter && initialViewZoom === null) return;
     initialViewAppliedRef.current = true;
-    setView((current) => ({ ...current, centerX: initialViewCenter[0], centerY: initialViewCenter[1] }));
-  }, [initialViewCenter]);
+    setView((current) => ({
+      centerX: initialViewCenter ? initialViewCenter[0] : current.centerX,
+      centerY: initialViewCenter ? initialViewCenter[1] : current.centerY,
+      scale: initialViewZoom ?? current.scale,
+    }));
+  }, [initialViewCenter, initialViewZoom]);
   const [drawing, setDrawing] = useState<Drawing>({ kind: 'idle' });
   const [snapHint, setSnapHint] = useState<{ world: [number, number]; kind: SnapKind } | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -656,7 +661,7 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
 
   function resetView() {
     const [cx, cy] = initialViewCenter ?? [0, 0];
-    setView({ centerX: cx, centerY: cy, scale: INITIAL_SCALE });
+    setView({ centerX: cx, centerY: cy, scale: initialViewZoom ?? INITIAL_SCALE });
   }
 
   function zoomBy(factor: number) {

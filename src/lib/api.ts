@@ -89,21 +89,24 @@ function normalizeState(data: unknown): GeometryState {
   }
 
   const candidate = data as GeometryState;
+  const view = parseViewCenter((candidate as { viewCenter?: unknown }).viewCenter);
   return {
     objects: candidate.objects,
     sidebarOpen: typeof candidate.sidebarOpen === 'boolean' ? candidate.sidebarOpen : undefined,
-    viewCenter: parseViewCenter((candidate as { viewCenter?: unknown }).viewCenter),
+    viewCenter: view.center,
+    viewZoom: view.zoom,
   };
 }
 
-function parseViewCenter(value: unknown): [number, number] | undefined {
-  if (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    Number.isFinite(value[0]) &&
-    Number.isFinite(value[1])
-  ) {
-    return [value[0], value[1]];
+function parseViewCenter(value: unknown): { center?: [number, number]; zoom?: number } {
+  if (!Array.isArray(value)) return {};
+  if (value.length !== 2 && value.length !== 3) return {};
+  if (!Number.isFinite(value[0]) || !Number.isFinite(value[1])) return {};
+  const result: { center: [number, number]; zoom?: number } = {
+    center: [value[0], value[1]],
+  };
+  if (value.length === 3 && Number.isFinite(value[2]) && value[2] > 0) {
+    result.zoom = value[2];
   }
-  return undefined;
+  return result;
 }

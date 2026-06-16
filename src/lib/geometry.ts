@@ -14,6 +14,7 @@ export type GeometryState = {
   objects: GeomObject[];
   sidebarOpen?: boolean;
   viewCenter?: [number, number];
+  viewZoom?: number;
 };
 
 export type ParseResult =

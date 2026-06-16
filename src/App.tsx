@@ -23,6 +23,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [initialSidebarOpen, setInitialSidebarOpen] = useState<boolean | null>(null);
   const [initialViewCenter, setInitialViewCenter] = useState<[number, number] | null>(null);
+  const [initialViewZoom, setInitialViewZoom] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -33,6 +34,7 @@ export default function App() {
           setObjects(state.objects);
           setInitialSidebarOpen(state.sidebarOpen === true);
           setInitialViewCenter(state.viewCenter ?? null);
+          setInitialViewZoom(state.viewZoom ?? null);
           setStatus(null);
         }
       })
@@ -186,6 +188,7 @@ export default function App() {
           selectedId={selectedId}
           onSelect={setSelectedId}
           initialViewCenter={initialViewCenter}
+          initialViewZoom={initialViewZoom}
         />
       </div>
       {(loading || status) && (

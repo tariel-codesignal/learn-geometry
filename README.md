@@ -193,7 +193,7 @@ The single source of truth for what loads when the app starts.
   "objects":     [ /* GeomObject[] */ ],
   "task":        { /* Task — optional */ },
   "sidebarOpen": false,    /* optional, defaults to false */
-  "viewCenter":  [0, 0]    /* optional, defaults to [0, 0] (origin) */
+  "viewCenter":  [0, 0]    /* optional, [x, y] or [x, y, zoom] — defaults to origin at 60× */
 }
 ```
 
@@ -205,11 +205,12 @@ The single source of truth for what loads when the app starts.
   sidebar expanded; `false` (or omitted) starts it collapsed. Users can
   still toggle it during the session; this only controls the initial
   state on page load.
-- `viewCenter` is optional. A `[x, y]` tuple of world coordinates that
-  the canvas is centered on at startup. Defaults to `[0, 0]` (the
-  origin). Both values must be finite numbers; malformed entries are
-  ignored. The "Reset view" button also returns the canvas to this
-  center.
+- `viewCenter` is optional. A tuple of world coordinates that the
+  canvas is centered on at startup: `[x, y]` to set only the center, or
+  `[x, y, zoom]` to also set the initial zoom (the multiplier shown in
+  the HUD; default `60`, must be `> 0`). Defaults to `[0, 0]` (the
+  origin) at the default zoom. The "Reset view" button also returns
+  the canvas to this center and zoom. Malformed entries are ignored.
 - Unknown top-level keys are ignored.
 
 ### Object types
