@@ -678,6 +678,10 @@ textarea {
   stroke-width: 3px;
 }
 
+.object-label.is-editable {
+  cursor: text;
+}
+
 .point-label-editor {
   position: absolute;
   z-index: 2;

@@ -801,6 +801,15 @@ export function Canvas({ objects, activeTool, onAddObject, onUpdateObject, selec
                 size={size}
                 worldToScreen={worldToScreen}
                 isSelected={object.id === selectedId}
+                onEditLabel={(target) => {
+                  if (target.type !== 'point') return;
+                  setLabelEditing({
+                    objectId: target.id,
+                    worldX: target.x,
+                    worldY: target.y,
+                    draft: target.label ?? '',
+                  });
+                }}
               />
             ))}
           </g>
@@ -1014,9 +1023,10 @@ type GeometryObjectProps = {
   size: Size;
   worldToScreen: (x: number, y: number) => [number, number];
   isSelected: boolean;
+  onEditLabel?: (object: GeomObject) => void;
 };
 
-function GeometryObject({ object, view, size, worldToScreen, isSelected }: GeometryObjectProps) {
+function GeometryObject({ object, view, size, worldToScreen, isSelected, onEditLabel }: GeometryObjectProps) {
   const fillClass = `shape-fill${isSelected ? ' is-selected' : ''}`;
   const strokeClass = `shape-stroke${isSelected ? ' is-selected' : ''}`;
   switch (object.type) {
@@ -1025,7 +1035,12 @@ function GeometryObject({ object, view, size, worldToScreen, isSelected }: Geome
       return (
         <g>
           <circle cx={sx} cy={sy} r={isSelected ? 5 : 4} className={`point-marker${isSelected ? ' is-selected' : ''}`} />
-          <ObjectLabel screenX={sx} screenY={sy} label={object.label} />
+          <ObjectLabel
+            screenX={sx}
+            screenY={sy}
+            label={object.label}
+            onDoubleClick={onEditLabel ? () => onEditLabel(object) : undefined}
+          />
         </g>
       );
     }
@@ -1089,10 +1104,26 @@ function GeometryObject({ object, view, size, worldToScreen, isSelected }: Geome
   }
 }
 
-function ObjectLabel({ screenX, screenY, label }: { screenX: number; screenY: number; label?: string }) {
+function ObjectLabel({
+  screenX,
+  screenY,
+  label,
+  onDoubleClick,
+}: {
+  screenX: number;
+  screenY: number;
+  label?: string;
+  onDoubleClick?: () => void;
+}) {
   if (!label?.trim()) return null;
   return (
-    <text x={screenX + 10} y={screenY - 10} className="object-label">
+    <text
+      x={screenX + 10}
+      y={screenY - 10}
+      className={`object-label${onDoubleClick ? ' is-editable' : ''}`}
+      onDoubleClick={onDoubleClick ? (event) => { event.stopPropagation(); onDoubleClick(); } : undefined}
+      onPointerDown={onDoubleClick ? (event) => event.stopPropagation() : undefined}
+    >
       {label}
     </text>
   );
