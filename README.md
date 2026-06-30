@@ -52,7 +52,7 @@ indefinitely in every direction, with axis tick labels (`1`, `2`, `5`, `10`,
 | Icon | Tool | Action |
 |---|---|---|
 | ↖ | **Drag / Select** | Click an object to select; drag a body to translate; drag a handle to resize; drag empty space to pan. |
-| ● | **Point** | Click to place a single point at the cursor. |
+| ● | **Point** | Click to place a single point at the cursor. An inline label editor opens at the new point — type a label and press `Enter` (or click away to skip). |
 | ╱ | **Line** | Either drag from one endpoint to the other, or click the first endpoint and then click the second. Snap-to-grid applies to both clicks. |
 | ○ | **Circle** | Press at the center, drag outward to set radius, release. |
 | ▭ | **Rectangle** | Press one corner, drag to the opposite corner, release. |
@@ -64,11 +64,21 @@ canvas (undoable).
 
 ### Snapping
 
-While drawing or editing, the cursor snaps to the nearest **major grid
-intersection** when within ~10 px of one. The grid step adapts with zoom
-(`0.1`, `0.5`, `1`, `2`, `5`, `10`, …), so snap targets follow naturally.
-A small ring is shown at the snap target so you can see it lock on. Move
-mode does not snap.
+While drawing or editing, the cursor snaps to the nearest target within
+~10 px. Snap targets are:
+
+- **Major grid intersections** — the grid step adapts with zoom (`0.1`,
+  `0.5`, `1`, `2`, `5`, `10`, …), so snap targets follow naturally.
+- **Intersection points** between existing objects.
+- **Vertices / anchors** of existing objects (line endpoints, rectangle
+  corners, polygon vertices, circle centers, points). Function curves
+  don't contribute snap points.
+
+Intersection and vertex snaps beat the grid when they're at least as
+close. A small ring is shown at the snap target so you can see it lock
+on. Move mode does not snap the cursor, but **translating** a selected
+object snaps its anchors to nearby intersection points and the
+translation delta also snaps to whole grid steps.
 
 ### Selecting and editing
 
@@ -92,6 +102,7 @@ Once selected:
 - **Delete / Backspace** removes the selected object (undoable).
 - **Arrow keys** nudge the selected object by 1 unit; **Shift + Arrow** nudges
   by 5 units. Each press is one undo step. Function curves are skipped.
+- **Double-click a point's label** to re-open the inline label editor.
 - All edits commit a single undo step per drag.
 
 ### Intersection points
